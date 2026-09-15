@@ -215,10 +215,17 @@ sequenceDiagram
 
 ## Desarrollo local (paso 1)
 
+### Usar Docker para PostgreSQL
+
 ```bash
-python3 -m venv .venv
+# iniciar postgresql en docker
+docker compose up -d
+
+# crear tablas en la base de datos
+python3 backend/scripts/setup_db_docker.py
+
+# iniciar backend
 source .venv/bin/activate
-pip install -r backend/requirements.txt
 cd backend && uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
