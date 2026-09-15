@@ -1,0 +1,20 @@
+services:
+  postgres: # servicio de base de datos postgresql
+    image: postgres:14 # imagen oficial de postgresql version 14
+    container_name: criptomed_db # nombre del contenedor
+    environment: # variables de entorno para postgresql
+      POSTGRES_USER: criptomed # usuario de postgresql
+      POSTGRES_PASSWORD: criptomed123 # contraseña del usuario
+      POSTGRES_DB: criptomed # nombre de la base de datos
+    ports: # mapeo de puertos (host:contenedor)
+      - "5433:5432" # puerto 5433 del host al 5432 del contenedor
+    volumes: # volumenes para persistencia de datos
+      - postgres_data:/var/lib/postgresql/data # guarda los datos en un volumen
+    healthcheck: # verifica que postgresql este listo
+      test: ["CMD-SHELL", "pg_isready -U criptomed"]
+      interval: 10s # verifica cada 10 segundos
+      timeout: 5s # tiempo maximo de espera
+      retries: 5 # numero de reintentos
+
+volumes: # definicion de volumenes
+  postgres_data: # volumen para persistir datos de postgresql
