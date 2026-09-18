@@ -50,6 +50,6 @@ if __name__ == "__main__":
         host="127.0.0.1",
         port=8000,
         reload=True,
-        ssl_keyfile="certs/key.pem",
-        ssl_certfile="certs/cert.pem"
+        ssl_keyfile="backend/certs/key.pem",
+        ssl_certfile="backend/certs/cert.pem"
     )
