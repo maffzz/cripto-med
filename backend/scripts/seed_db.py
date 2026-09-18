@@ -8,10 +8,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pandas as pd # para leer csvs
 from passlib.context import CryptContext # para hashear contraseñas
-from sqlalchemy.orm import Session # para sesiones de base de datos
+from sqlalchemy import text # para ejecutar sentencias SQL 
 
-from app.database import SessionLocal, engine # conexion a la base de datos
-from app.models import Usuario, Paciente, DiagnosticoCIE10, RolEnum # modelos de la base de datos
+from sqlalchemy.orm import Session # para sesiones de base de datos
+from app.database import SessionLocal # para crear sesiones de base de datos
+from app.models import AuditLog, Usuario, Paciente, DiagnosticoCIE10, RolEnum # modelos de la base de datos
 from app.crypto import encrypt, decrypt # para cifrar y descifrar campos sensibles
 from app.config import ROOT_DIR # directorio raiz del proyecto
 
@@ -24,14 +25,17 @@ def hash_password(password: str) -> str: # hashea una contraseña
 
 
 def cargar_diagnosticos_cie10(db: Session) -> int: # carga diagnosticos desde csv
+
+    # Limpieza previa respetando relaciones de clave foránea mediante SQL directo
+    db.execute(text("DELETE FROM pacientes;"))
+    db.execute(text("DELETE FROM diagnosticos_cie10;"))
+    db.commit()
+
     ruta_csv = ROOT_DIR / "data" / "cie10.csv" # ruta al archivo csv
     if not ruta_csv.exists(): # verifica que exista
         print(f"error: archivo no encontrado: {ruta_csv}")
         return 0
     
-    # limpia la tabla primero
-    db.query(DiagnosticoCIE10).delete()
-    db.commit()
     
     df = pd.read_csv(ruta_csv) # lee el csv
     df = df.drop_duplicates(subset=["codigo"]) # elimina duplicados por codigo
@@ -58,7 +62,7 @@ def cargar_pacientes(db: Session) -> int: # carga pacientes desde csv
         return 0
     
     # limpia la tabla primero
-    db.query(Paciente).delete()
+    db.execute(text("DELETE FROM pacientes;"))
     db.commit()
     
     df = pd.read_csv(ruta_csv) # lee el csv
@@ -126,8 +130,10 @@ def cargar_pacientes(db: Session) -> int: # carga pacientes desde csv
 
 
 def crear_usuarios_iniciales(db: Session) -> int: # crea usuarios iniciales
-    # limpia la tabla primero
-    db.query(Usuario).delete()
+
+    # Vaciar primero la tabla de auditoría que depende de usuarios
+    db.execute(text("DELETE FROM audit_logs;"))
+    db.execute(text("DELETE FROM usuarios;"))
     db.commit()
     
     usuarios = [ # lista de usuarios a crear

@@ -1,4 +1,4 @@
-from cryptography.fernet import Fernet # cifrado simetrico aes-256
+from cryptography.fernet import Fernet, InvalidToken # cifrado simetrico aes-256
 from app.config import ENCRYPTION_KEY # llave de encriptacion desde config
 
 # inicializa el cifrador fernet con la llave
@@ -15,5 +15,9 @@ def encrypt(text: str) -> str: # cifra un texto
 def decrypt(encrypted_text: str) -> str: # descifra un texto
     if not encrypted_text: # si esta vacio, retorna vacio
         return ""
-    decrypted = fernet.decrypt(encrypted_text.encode()) # descifra el texto
-    return decrypted.decode() # retorna como string
+    try:
+        decrypted = fernet.decrypt(encrypted_text.encode()) # descifra el texto
+        return decrypted.decode() # retorna como string
+    except (InvalidToken, Exception): 
+        return "[Error al descifrar]"
+        
