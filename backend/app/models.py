@@ -6,6 +6,7 @@ import enum # para crear enums en python
 from datetime import datetime as dt # alias distinto para evitar colisión con sqlalchemy
 
 from app.database import Base # base declarativa para los modelos
+from app.crypto import encrypt, decrypt  # funciones de cifrado y descifrado
 
 
 # enum para roles de usuario
@@ -65,6 +66,41 @@ class Paciente(Base):
     doctor = relationship("Usuario", back_populates="pacientes_asignados")
     diagnostico_cie10_rel = relationship("DiagnosticoCIE10", back_populates="pacientes")
 
+    # Propiedades para cifrado/descifrado de campos sensibles
+    @property
+    def nombre_descifrado(self) -> str:
+        return decrypt(self.nombre)
+    @nombre_descifrado.setter
+    def nombre_descifrado(self, valor: str):
+        self.nombre = encrypt(valor)
+
+    @property
+    def diagnostico_descifrado(self) -> str:
+        return decrypt(self.diagnostico)
+    @diagnostico_descifrado.setter
+    def diagnostico_descifrado(self, valor: str):
+        self.diagnostico = encrypt(valor)
+
+    @property
+    def monto_facturado_descifrado(self) -> str:
+        return decrypt(self.monto_facturado)
+    @monto_facturado_descifrado.setter
+    def monto_facturado_descifrado(self, valor: str):
+        self.monto_facturado = encrypt(valor)
+
+    @property
+    def medicacion_descifrado(self) -> str:
+        return decrypt(self.medicacion)
+    @medicacion_descifrado.setter
+    def medicacion_descifrado(self, valor: str):
+        self.medicacion = encrypt(valor)
+
+    @property
+    def resultado_test_descifrado(self) -> str:
+        return decrypt(self.resultado_test)
+    @resultado_test_descifrado.setter
+    def resultado_test_descifrado(self, valor: str):
+        self.resultado_test = encrypt(valor)
 
 # modelo de diagnostico cie10
 class DiagnosticoCIE10(Base):
