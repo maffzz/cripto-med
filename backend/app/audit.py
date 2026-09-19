@@ -50,13 +50,13 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         # Registrar peticiones procesadas exitosamente
         if response.status_code < 400:
-            usuario_id = None
             auth_header = request.headers.get("Authorization")
 
-            db = SessionLocal()
-            try:
-                # Extraer y decodificar el Token JWT
-                if auth_header and auth_header.startswith("Bearer "):
+            # Solo registrar logs si hay un usuario autenticado
+            if auth_header and auth_header.startswith("Bearer "):
+                db = SessionLocal()
+                try:
+                    # Extraer y decodificar el Token JWT
                     token = auth_header.split(" ")[1]
                     try:
                         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -65,30 +65,28 @@ class AuditMiddleware(BaseHTTPMiddleware):
                             # Obtenemos el UUID del usuario consultando por su email
                             usuario = db.query(Usuario).filter(Usuario.email == email).first()
                             if usuario:
-                                usuario_id = usuario.id
+                                # Mapear método HTTP a tipo de acción
+                                method_map = {
+                                    "GET": "lectura",
+                                    "POST": "edicion",
+                                    "PUT": "edicion",
+                                    "PATCH": "edicion",
+                                    "DELETE": "borrado",
+                                }
+                                accion = method_map.get(request.method, request.method.lower())
+
+                                ip_origen = request.client.host if request.client else "127.0.0.1"
+
+                                log_action(
+                                    db=db,
+                                    accion=accion,
+                                    recurso=f"{request.method} {path}",
+                                    usuario_id=usuario.id,
+                                    ip_origen=ip_origen,
+                                )
                     except (JWTError, ValueError):
                         pass
-
-                # Mapear método HTTP a tipo de acción
-                method_map = {
-                    "GET": "lectura",
-                    "POST": "edicion",
-                    "PUT": "edicion",
-                    "PATCH": "edicion",
-                    "DELETE": "borrado",
-                }
-                accion = method_map.get(request.method, request.method.lower())
-
-                ip_origen = request.client.host if request.client else "127.0.0.1"
-
-                log_action(
-                    db=db,
-                    accion=accion,
-                    recurso=f"{request.method} {path}",
-                    usuario_id=usuario_id,
-                    ip_origen=ip_origen,
-                )
-            finally:
-                db.close()
+                finally:
+                    db.close()
 
         return response
