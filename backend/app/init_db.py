@@ -57,8 +57,8 @@ def check_and_load_diagnosticos():
             
             for _, row in df_cie10.iterrows():
                 diagnostico = DiagnosticoCIE10(
-                    codigo=row["code"],
-                    descripcion=row["description"]
+                    codigo=row["codigo"],  # columna correcta: "codigo"
+                    descripcion=row["diagnostico"]  # columna correcta: "diagnostico"
                 )
                 session.add(diagnostico)
                 contador_cie10 += 1
@@ -179,13 +179,8 @@ def check_and_load_pacientes():
                 medicacion_cifrado = encrypt(str(row["Medication"]))
                 resultado_cifrado = encrypt(str(row["Test Results"]))
                 
-                # Verifica si el código CIE-10 existe
-                codigo_cie10 = row["Codigo_CIE10"]
-                diagnostico_ref = session.query(DiagnosticoCIE10).filter(
-                    DiagnosticoCIE10.codigo == codigo_cie10
-                ).first()
-                if not diagnostico_ref:
-                    codigo_cie10 = None
+                # El CSV original no tiene código CIE-10, así que lo dejamos null
+                codigo_cie10 = None
                 
                 # 40% de pacientes activos
                 fecha_alta = row["Discharge Date"] if (index % 100) >= 40 else None
