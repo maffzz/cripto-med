@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { API_CONFIG } from '../config';
 import { Shield, Search, Filter, ChevronLeft, ChevronRight, Clock, User as UserIcon, AlertTriangle, CheckCircle, XCircle, FileText } from 'lucide-react';
 
 const AuditLog = () => {
@@ -15,8 +16,7 @@ const AuditLog = () => {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-        const response = await axios.get(`${apiUrl}/audit-logs?page=${page}&page_size=20`);
+        const response = await axios.get(`${API_CONFIG.URL}/audit-logs?page=${page}&page_size=20`);
         setLogs(response.data.items);
         setTotal(response.data.total);
       } catch (err) {
