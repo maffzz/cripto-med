@@ -182,7 +182,7 @@ $2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5xY8GwT1sHsGC
 |-----|-----------|----------------------|-------------|------|
 | admin | Todos | Sí | Sí | Sí |
 | doctor | Asignados | Sí | No | No |
-| administrativo | Todos | No | Sí | No |
+| administrativo | Todos (datos básicos) | No | Sí | No |
 | auditor | Ninguno | No | No | Sí |
 
 #### 3.1.5 Logs de Auditoría

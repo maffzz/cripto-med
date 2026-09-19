@@ -11,8 +11,8 @@ from app.crypto import encrypt, decrypt  # Importamos tus funciones de cifrado
 
 router = APIRouter(prefix="/pacientes", tags=["Pacientes"])
 
-# Acceso permitido para administradores y doctores
-autorizado = Depends(require_role([RolEnum.admin, RolEnum.doctor]))
+# Acceso permitido para administradores, doctores y administrativos
+autorizado = Depends(require_role([RolEnum.admin, RolEnum.doctor, RolEnum.administrativo]))
 
 def formatear_paciente_respuesta(p: Paciente) -> dict:
     """Helper para mapear el modelo de BD (cifrado) al esquema de respuesta (descifrado)"""
@@ -44,7 +44,7 @@ def listar_pacientes(db: Session = Depends(get_db)):
     pacientes_db = (
         db.query(Paciente)
         .order_by(Paciente.fecha_admision.desc())  # Trae primero los registros más recientes
-        .limit(50)  # Limita a los 50 registros más recientes para no saturar la respuesta
+        .limit(1000)  # Limita a los 1000 registros más recientes para no saturar la respuesta
         .all()
     )
     return [formatear_paciente_respuesta(p) for p in pacientes_db]
