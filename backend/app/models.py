@@ -15,6 +15,7 @@ class RolEnum(enum.Enum):
     doctor = "doctor" # doctor puede ver y editar pacientes asignados
     administrativo = "administrativo" # personal administrativo ve datos basicos y facturacion
     auditor = "auditor" # auditor solo puede ver logs de auditoria
+    paciente = "paciente" # paciente puede ver su propio historial y transferirlo a otro doctor
 
 
 # enum para acciones de auditoria
@@ -23,6 +24,7 @@ class AccionEnum(enum.Enum):
     lectura = "lectura" # consulta de datos
     edicion = "edicion" # modificacion de datos
     borrado = "borrado" # eliminacion de datos
+    transferencia = "transferencia" # transferencia de paciente a otro doctor
 
 
 # modelo de usuario
@@ -37,7 +39,8 @@ class Usuario(Base):
     activo = Column(Boolean, default=True) # para revocación de accesos
     creado_en = Column(DateTime, default=dt.utcnow)
 
-    pacientes_asignados = relationship("Paciente", back_populates="doctor")
+    pacientes_asignados = relationship("Paciente", back_populates="doctor", foreign_keys="Paciente.doctor_id")
+    paciente_cuenta = relationship("Paciente", back_populates="usuario", foreign_keys="Paciente.usuario_id", uselist=False)
     audit_logs = relationship("AuditLog", back_populates="usuario")
 
 
@@ -54,6 +57,7 @@ class Paciente(Base):
     codigo_cie10 = Column(String, ForeignKey("diagnosticos_cie10.codigo"))
     fecha_admision = Column(DateTime, nullable=False)
     doctor_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), unique=True, nullable=True) # FK opcional para cuenta de login del paciente
     hospital = Column(String)
     proveedor_seguro = Column(String)
     monto_facturado = Column(String) # cifrado -> se guarda como texto cifrado, NO como Numeric
@@ -63,7 +67,8 @@ class Paciente(Base):
     medicacion = Column(String) # cifrado en capa de aplicación
     resultado_test = Column(String) # cifrado en capa de aplicación
 
-    doctor = relationship("Usuario", back_populates="pacientes_asignados")
+    doctor = relationship("Usuario", back_populates="pacientes_asignados", foreign_keys=[doctor_id])
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
     diagnostico_cie10_rel = relationship("DiagnosticoCIE10", back_populates="pacientes")
 
     # Propiedades para cifrado/descifrado de campos sensibles
@@ -122,5 +127,6 @@ class AuditLog(Base):
     recurso = Column(String, nullable=False) # ej: "paciente:uuid"
     timestamp = Column(DateTime, default=dt.utcnow, nullable=False)
     ip_origen = Column(String)
+    detalle = Column(String, nullable=True) # detalle adicional, ej: "doctor_anterior=UUID, doctor_nuevo=UUID"
 
     usuario = relationship("Usuario", back_populates="audit_logs")

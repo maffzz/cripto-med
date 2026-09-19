@@ -19,8 +19,8 @@ const Login = () => {
     const result = await login(email, password);
     console.log('login result:', result);
     if (result.success) {
-      console.log('navigating to /dashboard');
-      navigate('/dashboard');
+      console.log('navigating to /redirect');
+      navigate('/redirect');
     } else {
       setError(result.error);
     }
@@ -117,19 +117,31 @@ const Login = () => {
           {/* Test Users */}
           <div className="space-y-2 text-sm text-gray-600 bg-gray-50 rounded-lg p-4">
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-medical-500" />
+              <CheckCircle className="w-4 h-4 text-blue-500" />
               <span><strong>Admin:</strong> admin@criptomed.com / admin123</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-medical-500" />
-              <span><strong>Doctor:</strong> doctor@criptomed.com / doctor123</span>
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <span><strong>Dra. Ana Torres:</strong> ana.torres@criptomed.pe / doctor123</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-medical-500" />
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <span><strong>Dr. Luis Ramírez:</strong> luis.ramirez@criptomed.pe / doctor123</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <span><strong>Dra. Carla Quispe:</strong> carla.quispe@criptomed.pe / doctor123</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-purple-500" />
+              <span><strong>Paciente Demo:</strong> paciente.demo@criptomed.pe / demo123</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-yellow-500" />
               <span><strong>Administrativo:</strong> admin@clinica.com / admin123</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-medical-500" />
+              <CheckCircle className="w-4 h-4 text-red-500" />
               <span><strong>Auditor:</strong> auditor@criptomed.com / auditor123</span>
             </div>
           </div>

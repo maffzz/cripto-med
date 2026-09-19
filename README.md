@@ -340,9 +340,15 @@ Toda la documentación detallada del proyecto se encuentra en la carpeta `/docs/
 - `docs/images/admin_sistema_logs.png` - Logs de auditoría del admin
 - `docs/images/admin_clinica_dashboard.png` - Dashboard del administrativo
 - `docs/images/doctor_dashboard.png` - Dashboard del doctor
-- `docs/images/auditor_dashboard_denegado.png - Auditor sin acceso a dashboard
+- `docs/images/auditor_dashboard_denegado.png` - Auditor sin acceso a dashboard
 - `docs/images/auditor_logs.png` - Logs de auditoría del auditor
 - `docs/images/JWT_logs.png` - Headers JWT en Network tab
+- `docs/images/ana_no_bobby.png` - Doctor A (Ana Torres) no ve paciente demo
+- `docs/images/bobby_tranfiere_ana.png` - Paciente demo transfiere de Doctor A a Doctor B
+- `docs/images/luis_si_bobby.png` - Doctor B (Luis Ramírez) ahora sí ve paciente demo
+- `docs/images/ana_ahora_si_bobby.png` - Doctor A (Ana Torres) ya no ve paciente demo
+- `docs/images/logs_transferencia.png` - Log de auditoría de transferencia
+- `docs/images/luis_ya_no_bobby.png` - Doctor B (Luis Ramírez) ya no ve paciente demo después de transferencia
 
 **Scripts:**
 - `backend/scripts/backup_db.sh` - Script de backup de PostgreSQL
@@ -405,3 +411,122 @@ El backend está configurado para desplegarse en Render usando `render.yaml`.
 **Nota:**
 - El plan gratuito de Render tiene limitaciones (spindown después de 15 min de inactividad)
 - Para producción se recomienda usar un plan de pago
+
+---
+
+## Extensión: Login de Paciente y Transferencia de Doctor
+
+### Auto-Gestión de Accesos por Parte del Paciente
+
+Además del control de accesos basado en roles, se implementó un mecanismo de auto-gestión de accesos por parte del paciente: el paciente puede transferir el acceso a su historial médico de un doctor a otro directamente desde su cuenta, sin intervención de un administrador. Esta funcionalidad refuerza el principio de mínimo privilegio (solo el doctor actualmente asignado tiene acceso al historial completo) y se alinea con los derechos de los titulares de datos personales reconocidos en la **Ley N° 29733** (Ley de Protección de Datos Personales del Perú), donde el paciente mantiene control sobre quién accede a su información sensible.
+
+**Implementación:**
+- Nuevo rol `paciente` en el sistema
+- Endpoint `GET /pacientes/me` para que el paciente vea su propio historial
+- Endpoint `PATCH /pacientes/{id}/transferir-doctor` para transferir a otro doctor
+- Endpoint `GET /pacientes/doctores` para listar doctores disponibles
+- Campo `usuario_id` en el modelo `Paciente` para vincular la cuenta del paciente con su historial médico
+- Nueva acción `transferencia` en el enum de auditoría
+- Campo `detalle` en `AuditLog` para guardar el doctor anterior y el nuevo doctor
+
+**Permisos del Rol Paciente:**
+- Solo puede leer su propio historial médico (`GET /pacientes/me`)
+- Puede transferir su historial a otro doctor disponible
+- No puede ver otros pacientes
+- No puede ver logs de auditoría
+- No puede editar diagnóstico o medicación (solo transferir el acceso)
+
+**Seguridad:**
+- La transferencia solo puede ser ejecutada por:
+  - El propio paciente (self-service)
+  - Un administrador (por seguridad en caso de emergencia)
+- Cada transferencia queda registrada en el log de auditoría con:
+  - Usuario que ejecutó la acción
+  - Timestamp exacto
+  - Doctor anterior (UUID)
+  - Doctor nuevo (UUID)
+  - IP de origen
+
+**Demostración:**
+El flujo completo se puede demostrar en vivo:
+1. Login como Doctor A → muestra sus pacientes asignados
+2. Login como Doctor B → NO ve al paciente demo (asignado al Doctor A)
+3. Login como Paciente Demo → ve su historial con Doctor A asignado
+4. Paciente transfiere a Doctor B → acción registrada en logs
+5. Login como Doctor B → AHORA SÍ ve al paciente demo
+6. Login como Doctor A → YA NO ve al paciente demo
+7. Login como Auditor → log de auditoría muestra la transferencia con detalles completos
+
+**Evidencia Visual:**
+
+![Login como Doctor A - Ana Torres no ve Bobby Jackson](docs/images/ana_no_bobby.png)
+
+![Login como Paciente Demo - Bobby Jackson transfiere a Dr. Luis Ramírez](docs/images/bobby_tranfiere_ana.png)
+
+![Login como Doctor B - Luis Ramírez ahora sí ve Bobby Jackson](docs/images/luis_si_bobby.png)
+
+![Login como Doctor A - Ana Torres ya no ve Bobby Jackson](docs/images/ana_ahora_si_bobby.png)
+
+![Login como Auditor - Log de transferencia con detalles completos](docs/images/logs_transferencia.png)
+
+![Login como Doctor B - Luis Ramírez ya no ve Bobby Jackson después de transferencia](docs/images/luis_ya_no_bobby.png)
+
+### Derechos ARCO y Auto-Gestión
+
+La funcionalidad de transferencia de doctor por parte del paciente se alinea directamente con los derechos ARCO (Acceso, Rectificación, Cancelación, Oposición) reconocidos en la Ley N° 29733. Específicamente, refuerza el derecho de **Acceso** (el paciente puede ver su propio historial) y el derecho de **Oposición** (el paciente puede controlar quién accede a su información). Esto demuestra que el sistema no solo protege los datos sensibles, sino que también empodera al titular de los datos para ejercer control sobre su información.
+
+### Flujo de Transferencia de Doctor
+
+```
+┌─────────────┐
+│  Paciente   │
+│  (Login)    │
+└──────┬──────┘
+       │
+       │ GET /pacientes/me
+       │
+       ▼
+┌─────────────────┐
+│  Mi Historial   │
+│  (Frontend)    │
+└──────┬──────────┘
+       │
+       │ PATCH /pacientes/{id}/transferir-doctor
+       │ (nuevo_doctor_id)
+       │
+       ▼
+┌─────────────────┐
+│  Backend FastAPI│
+│  - Verifica     │
+│    permisos     │
+│  - Actualiza    │
+│    doctor_id    │
+│  - Registra     │
+│    en audit_log │
+└──────┬──────────┘
+       │
+       │
+       ▼
+┌─────────────────┐
+│  Doctor A       │
+│  (Pierde acceso)│
+└─────────────────┘
+
+┌─────────────────┐
+│  Doctor B       │
+│  (Gana acceso)  │
+└─────────────────┘
+
+┌─────────────────┐
+│  Audit Log      │
+│  (Registra      │
+│   transferencia)│
+└─────────────────┘
+```
+
+### Mejoras en la Auto-Gestión del Paciente (Recomendaciones Futuras)
+- Implementar notificaciones al doctor cuando un paciente transfiere su historial
+- Agregar historial de transferencias (timeline de cambios de doctor)
+- Implementar revocación de transferencia (undo) dentro de un período de tiempo
+- Agregar aprobación del doctor antes de aceptar transferencia
+- Implementar consentimiento explícito del paciente para cada acceso

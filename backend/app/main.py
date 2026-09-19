@@ -19,6 +19,30 @@ app = FastAPI( # instancia principal de la aplicacion
 @app.on_event("startup")
 def startup_event():
     initialize_database()
+    
+    # Migración automática de base de datos (solo si se configura la variable de entorno)
+    import os
+    should_migrate = os.getenv('MIGRATE_DATABASE', 'false').lower() == 'true'
+    
+    if should_migrate:
+        print("=== MIGRACIÓN AUTOMÁTICA DE BASE DE DATOS ===")
+        from app.database import engine
+        from app.models import Base
+        
+        print("Eliminando tablas existentes...")
+        Base.metadata.drop_all(bind=engine)
+        print("Tablas eliminadas")
+        
+        print("Creando tablas con el nuevo modelo...")
+        Base.metadata.create_all(bind=engine)
+        print("Tablas creadas con el nuevo modelo")
+        
+        print("Ejecutando inicialización con el nuevo seed...")
+        initialize_database()
+        print("Inicialización completada")
+        
+        print("=== MIGRACIÓN COMPLETADA ===")
+        print("IMPORTANTE: Desactiva MIGRATE_DATABASE=true en Render después de la migración")
 
 # --- Configuración de CORS ---
 app.add_middleware(

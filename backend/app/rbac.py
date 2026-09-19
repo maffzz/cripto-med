@@ -61,5 +61,13 @@ def check_permission(usuario: Usuario, accion: str, recurso: any) -> bool:
         if accion in ["lectura", "edicion"]:
             return recurso in ["pacientes_basico", "facturacion"]
         return False
-        
+
+    # Lógica: paciente -> solo su propio historial y transferir doctor
+    if usuario.rol == RolEnum.paciente:
+        if isinstance(recurso, Paciente):
+            # Valida que el paciente sea el propio usuario
+            return recurso.usuario_id == usuario.id
+        # Permite acceso a su propio historial
+        return recurso == "mi_historial" or recurso == "transferir_doctor"
+
     return False
