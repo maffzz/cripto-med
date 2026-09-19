@@ -49,38 +49,40 @@ def check_and_create_users():
                     "email": "admin@criptomed.com",
                     "nombre": "Admin Sistema",
                     "rol": "admin",
-                    "password": "admin123"
+                    "password": "admin123"  # password corto (< 72 bytes)
                 },
                 {
                     "email": "doctor@criptomed.com",
                     "nombre": "Doctor Principal",
                     "rol": "doctor",
-                    "password": "doctor123"
+                    "password": "doctor123"  # password corto (< 72 bytes)
                 },
                 {
                     "email": "admin@clinica.com",
                     "nombre": "Maria Lopez",
                     "rol": "administrativo",
-                    "password": "admin123"
+                    "password": "admin123"  # password corto (< 72 bytes)
                 },
                 {
                     "email": "auditor@criptomed.com",
                     "nombre": "Auditor Externo",
                     "rol": "auditor",
-                    "password": "auditor123"
+                    "password": "auditor123"  # password corto (< 72 bytes)
                 }
             ]
             
             from app.models import RolEnum
             
             for usuario_data in usuarios_iniciales:
-                # Truncar password a 72 caracteres máximo (límite de bcrypt)
-                password_truncado = usuario_data["password"][:72]
+                # Los passwords ya son cortos, no necesitan truncación
+                password = usuario_data["password"]
+                print(f"Creando usuario: {usuario_data['email']}, password length: {len(password)}")
+                
                 usuario = Usuario(
                     email=usuario_data["email"],
                     nombre=usuario_data["nombre"],
                     rol=RolEnum(usuario_data["rol"]),
-                    password_hash=pwd_context.hash(password_truncado)
+                    password_hash=pwd_context.hash(password)
                 )
                 session.add(usuario)
             
