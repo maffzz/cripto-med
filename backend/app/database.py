@@ -5,9 +5,9 @@ from sqlalchemy.orm import sessionmaker # fabrica de sesiones para interactuar c
 from app.config import DATABASE_URL # url de conexion desde el archivo de configuracion
 
 # crea el motor de conexion a postgresql
-# si DATABASE_URL no tiene el dialecto especificado, agregar +psycopg2
+# si DATABASE_URL no tiene el dialecto especificado, agregar +psycopg
 if DATABASE_URL.startswith("postgresql://"):
-    database_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
+    database_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://")
 else:
     database_url = DATABASE_URL
 
