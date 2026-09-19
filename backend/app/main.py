@@ -45,11 +45,25 @@ def read_root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="127.0.0.1",
-        port=8000,
-        reload=True,
-        ssl_keyfile="backend/certs/key.pem",
-        ssl_certfile="backend/certs/cert.pem"
-    )
+    import os
+    
+    # verifica si esta en modo desarrollo o produccion
+    use_https = os.getenv('USE_HTTPS', 'false').lower() == 'true'
+    
+    if use_https:
+        # produccion: usa https con certificados autofirmados
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8443,
+            ssl_keyfile="backend/certs/key.pem",
+            ssl_certfile="backend/certs/cert.pem"
+        )
+    else:
+        # desarrollo: usa http para evitar errores de certificado autofirmado en navegador
+        uvicorn.run(
+            "app.main:app",
+            host="127.0.0.1",
+            port=8000,
+            reload=True
+        )

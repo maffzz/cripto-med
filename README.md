@@ -18,6 +18,7 @@ Plataforma web que permite a clínicas pequeñas y consultorios independientes c
 - [Estructura del repositorio](#estructura-del-repositorio)
 - [Endpoints principales](#endpoints-principales)
 - [Cumplimiento normativo](#cumplimiento-normativo)
+- [Documentación](#documentación)
 - [Recomendaciones futuras](#recomendaciones-futuras)
 
 ---
@@ -250,6 +251,13 @@ criptomed/
 │   │       ├── usuarios.py
 │   │       └── audit_logs.py
 │   ├── certs/                 # cert.pem, key.pem (autofirmados, NO subir a git)
+│   ├── scripts/
+│   │   ├── setup_db_docker.py # script de setup de base de datos
+│   │   ├── seed_db.py         # script de carga de datos
+│   │   ├── backup_db.sh       # script de backup de postgresql
+│   │   ├── create_user.py     # script de creación de usuarios
+│   │   ├── verificar_cifrado.py # script de verificación de cifrado
+│   │   └── verificar_logs.py  # script de verificación de logs
 │   ├── data/
 │   │   ├── healthcare_dataset.csv
 │   │   ├── cie10.csv
@@ -258,11 +266,30 @@ criptomed/
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/ (Login, Dashboard, PacienteDetalle, AuditLog)
-│   │   └── components/
+│   │   ├── components/ (Layout)
+│   │   ├── context/ (AuthContext)
+│   │   └── App.jsx
 │   └── package.json
 ├── docs/
-│   └── informe/                # informe para GitHub Pages
-└── README.md
+│   ├── RECOVERY_PLAN.md               # plan de recuperación ante desastres
+│   ├── HTTPS_CONFIGURATION.md         # configuración https (http vs https)
+│   ├── PASSWORD_POLICY.md             # políticas de contraseñas
+│   ├── USER_MANAGEMENT.md             # procedimientos de gestión de usuarios
+│   ├── SECURITY_AWARENESS.md          # concientización y formación del equipo
+│   ├── INCIDENT_RESPONSE.md           # plan de respuesta ante incidentes
+│   ├── NOTIFICATION_PROCEDURES.md     # procedimientos de notificación
+│   ├── MITIGATION_PROCEDURES.md       # procedimientos de mitigación
+│   ├── FUTURE_RECOMMENDATIONS.md      # recomendaciones futuras de seguridad
+│   └── FINAL_REPORT.md                # informe final completo
+├── data/
+│   ├── cie10.csv
+│   └── healthcare_dataset_mapped.csv
+├── docker-compose.yml
+├── .env
+├── .env.example
+├── .gitignore
+├── README.md
+└── SETUP_GUIDE.md
 ```
 
 ## Endpoints principales
@@ -284,6 +311,31 @@ criptomed/
 
 - **Ley N° 29733** – Ley de Protección de Datos Personales del Perú (aplicación directa: datos de salud = datos sensibles).
 - Referencia complementaria: principios de **HIPAA** (EE.UU.), dado que la estructura del dataset base sigue ese estándar.
+
+## Documentación
+
+Toda la documentación detallada del proyecto se encuentra en la carpeta `/docs/`:
+
+**Documentación de Seguridad:**
+- `docs/RECOVERY_PLAN.md` - Plan de recuperación ante desastres
+- `docs/HTTPS_CONFIGURATION.md` - Configuración HTTPS (HTTP vs HTTPS)
+- `docs/PASSWORD_POLICY.md` - Políticas de contraseñas
+- `docs/USER_MANAGEMENT.md` - Procedimientos de gestión de usuarios
+- `docs/SECURITY_AWARENESS.md` - Concientización y formación del equipo
+- `docs/INCIDENT_RESPONSE.md` - Plan de respuesta ante incidentes
+- `docs/NOTIFICATION_PROCEDURES.md` - Procedimientos de notificación
+- `docs/MITIGATION_PROCEDURES.md` - Procedimientos de mitigación
+- `docs/FUTURE_RECOMMENDATIONS.md` - Recomendaciones futuras de seguridad
+
+**Documentación de Proyecto:**
+- `docs/FINAL_REPORT.md` - Informe final completo (diseño, motivación, trasfondo teórico, requerimientos, implementación, lecciones aprendidas, retrospectiva)
+
+**Documentación de Setup:**
+- `SETUP_GUIDE.md` - Guía de setup del proyecto
+- `README.md` - Este archivo
+
+**Scripts:**
+- `backend/scripts/backup_db.sh` - Script de backup de PostgreSQL
 
 ## Recomendaciones futuras
 
