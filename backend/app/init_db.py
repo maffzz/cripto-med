@@ -74,11 +74,13 @@ def check_and_create_users():
             from app.models import RolEnum
             
             for usuario_data in usuarios_iniciales:
+                # Truncar password a 72 caracteres máximo (límite de bcrypt)
+                password_truncado = usuario_data["password"][:72]
                 usuario = Usuario(
                     email=usuario_data["email"],
                     nombre=usuario_data["nombre"],
                     rol=RolEnum(usuario_data["rol"]),
-                    password_hash=pwd_context.hash(usuario_data["password"])
+                    password_hash=pwd_context.hash(password_truncado)
                 )
                 session.add(usuario)
             
