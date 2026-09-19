@@ -7,12 +7,18 @@ from fastapi.middleware.cors import CORSMiddleware # middleware para CORS
 from app.audit import AuditMiddleware # middleware para auditoria
 from app.config import JWT_SECRET # secreto jwt para saber si ya se configuro
 from app.routers import auth, usuarios, pacientes, audit_logs # importa los routers de autenticacion, usuarios y pacientes
+from app.init_db import initialize_database # script de inicializacion automatica
 
 app = FastAPI( # instancia principal de la aplicacion
     title="CriptoMed", # nombre que aparece en /docs
     description="Historiales clínicos con RBAC, cifrado y auditoría — DS3031", # texto de la documentacion
     version="0.1.0", # version inicial del api
 )
+
+# Inicializar base de datos al inicio (crear tablas y usuarios si no existen)
+@app.on_event("startup")
+def startup_event():
+    initialize_database()
 
 # --- Configuración de CORS ---
 app.add_middleware(
