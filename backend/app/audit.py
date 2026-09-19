@@ -10,7 +10,7 @@ from app.database import SessionLocal
 from app.models import AuditLog, Usuario
 from app.config import JWT_SECRET, JWT_ALGORITHM
 
-EXCLUDE_PATHS = ["/docs", "/redoc", "/openapi.json", "/health", "/favicon.ico", "/auth/login"]  # Rutas que no se auditarán
+EXCLUDE_PATHS = ["/docs", "/redoc", "/openapi.json", "/health", "/favicon.ico", "/auth/login", "/pacientes/transferir-doctor"]  # Rutas que no se auditarán
 
 
 def log_action(
@@ -44,6 +44,10 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         # Omitir rutas públicas o documentación
         if any(path.startswith(exc) for exc in EXCLUDE_PATHS):
+            return await call_next(request)
+
+        # Omitir específicamente el endpoint de transferencia
+        if "transferir-doctor" in path:
             return await call_next(request)
 
         response = await call_next(request)
@@ -86,6 +90,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
                                 )
                     except (JWTError, ValueError):
                         pass
+                except Exception as e:
+                    # No fallar el request si hay error en el logging
+                    print(f"Error en middleware de auditoría: {e}")
                 finally:
                     db.close()
 

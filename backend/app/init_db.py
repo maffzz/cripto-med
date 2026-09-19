@@ -80,49 +80,66 @@ def check_and_create_users():
     """Verifica si hay usuarios y crea los iniciales si no existen"""
     Session = sessionmaker(bind=engine)
     session = Session()
-    
+
     try:
         user_count = session.query(Usuario).count()
-        
+
         if user_count == 0:
             print("No hay usuarios, creando usuarios iniciales...")
-            
+
             pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            
+
             usuarios_iniciales = [
                 {
                     "email": "admin@criptomed.com",
                     "nombre": "Admin Sistema",
                     "rol": "admin",
-                    "password": "admin123"  # password corto (< 72 bytes)
+                    "password": "admin123"
                 },
                 {
-                    "email": "doctor@criptomed.com",
-                    "nombre": "Doctor Principal",
+                    "email": "ana.torres@criptomed.pe",
+                    "nombre": "Dra. Ana Torres",
                     "rol": "doctor",
-                    "password": "doctor123"  # password corto (< 72 bytes)
+                    "password": "doctor123"
+                },
+                {
+                    "email": "luis.ramirez@criptomed.pe",
+                    "nombre": "Dr. Luis Ramírez",
+                    "rol": "doctor",
+                    "password": "doctor123"
+                },
+                {
+                    "email": "carla.quispe@criptomed.pe",
+                    "nombre": "Dra. Carla Quispe",
+                    "rol": "doctor",
+                    "password": "doctor123"
                 },
                 {
                     "email": "admin@clinica.com",
                     "nombre": "Maria Lopez",
                     "rol": "administrativo",
-                    "password": "admin123"  # password corto (< 72 bytes)
+                    "password": "admin123"
                 },
                 {
                     "email": "auditor@criptomed.com",
                     "nombre": "Auditor Externo",
                     "rol": "auditor",
-                    "password": "auditor123"  # password corto (< 72 bytes)
+                    "password": "auditor123"
+                },
+                {
+                    "email": "paciente.demo@criptomed.pe",
+                    "nombre": "Paciente Demo",
+                    "rol": "paciente",
+                    "password": "demo123"
                 }
             ]
-            
+
             from app.models import RolEnum
-            
+
             for usuario_data in usuarios_iniciales:
-                # Los passwords ya son cortos, no necesitan truncación
                 password = usuario_data["password"]
-                print(f"Creando usuario: {usuario_data['email']}, password length: {len(password)}")
-                
+                print(f"Creando usuario: {usuario_data['email']}, rol: {usuario_data['rol']}")
+
                 usuario = Usuario(
                     email=usuario_data["email"],
                     nombre=usuario_data["nombre"],
@@ -130,7 +147,7 @@ def check_and_create_users():
                     password_hash=pwd_context.hash(password)
                 )
                 session.add(usuario)
-            
+
             session.commit()
             print(f"Se crearon {len(usuarios_iniciales)} usuarios iniciales")
             return True
@@ -151,40 +168,51 @@ def check_and_load_pacientes():
     
     try:
         paciente_count = session.query(Paciente).count()
-        
+
         if paciente_count == 0:
             print("No hay pacientes, cargando datos del dataset...")
-            
+
+            # Obtener los 3 doctores creados
+            doctores = session.query(Usuario).filter(Usuario.rol == RolEnum.doctor).all()
+            if len(doctores) < 3:
+                print(f"WARNING: Se esperaban 3 doctores, se encontraron {len(doctores)}")
+                return False
+
+            print(f"Doctores disponibles: {[d.nombre for d in doctores]}")
+
             # Ruta al CSV en el repositorio
             ruta_pacientes = Path(__file__).parent.parent.parent / "data" / "healthcare_dataset.csv"
-            
+
             if not ruta_pacientes.exists():
                 print(f"WARNING: Archivo de pacientes no encontrado: {ruta_pacientes}")
                 print("No se cargarán pacientes automáticamente")
                 return False
-            
+
             df_pacientes = pd.read_csv(ruta_pacientes)
             contador_pacientes = 0
-            
+
             print(f"Cargando {len(df_pacientes)} pacientes del dataset...")
-            
+
             for index, row in df_pacientes.iterrows():
                 # Limpia el nombre: title case
                 nombre_limpio = str(row["Name"]).title()
-                
+
                 # Campos sensibles cifrados
                 nombre_cifrado = encrypt(nombre_limpio)
                 diagnostico_cifrado = encrypt(str(row["Medical Condition"]))
                 monto_cifrado = encrypt(str(row["Billing Amount"]))
                 medicacion_cifrado = encrypt(str(row["Medication"]))
                 resultado_cifrado = encrypt(str(row["Test Results"]))
-                
+
                 # El CSV original no tiene código CIE-10, así que lo dejamos null
                 codigo_cie10 = None
-                
+
+                # Distribuir pacientes entre los 3 doctores (round-robin)
+                doctor_asignado = doctores[index % 3]
+
                 # 40% de pacientes activos
                 fecha_alta = row["Discharge Date"] if (index % 100) >= 40 else None
-                
+
                 paciente = Paciente(
                     nombre=nombre_cifrado,
                     edad=int(row["Age"]),
@@ -193,7 +221,7 @@ def check_and_load_pacientes():
                     diagnostico=diagnostico_cifrado,
                     codigo_cie10=codigo_cie10,
                     fecha_admision=row["Date of Admission"],
-                    doctor_id=None,
+                    doctor_id=doctor_asignado.id,
                     hospital=row["Hospital"],
                     proveedor_seguro=row["Insurance Provider"],
                     monto_facturado=monto_cifrado,
@@ -213,6 +241,21 @@ def check_and_load_pacientes():
             
             session.commit()
             print(f"Se cargaron {contador_pacientes} pacientes")
+
+            # Vincular el paciente demo con el primer paciente del CSV
+            print("Vinculando paciente demo con su cuenta...")
+            paciente_demo_usuario = session.query(Usuario).filter(
+                Usuario.email == "paciente.demo@criptomed.pe"
+            ).first()
+
+            if paciente_demo_usuario:
+                # Obtener el primer paciente del CSV (ya cargado)
+                primer_paciente = session.query(Paciente).first()
+                if primer_paciente:
+                    primer_paciente.usuario_id = paciente_demo_usuario.id
+                    session.commit()
+                    print(f"Paciente demo vinculado con su cuenta: {primer_paciente.nombre_descifrado}")
+
             return True
         else:
             print(f"Ya existen {paciente_count} pacientes")

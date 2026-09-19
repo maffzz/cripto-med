@@ -1,15 +1,19 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Heart, LogOut, LayoutDashboard, FileText, Shield, User } from 'lucide-react';
+import { Heart, LogOut, LayoutDashboard, FileText, Shield, User, Activity } from 'lucide-react';
 
 const Layout = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  ];
+  const navItems = [];
+
+  if (user?.rol === 'paciente') {
+    navItems.push({ path: '/mi-historial', label: 'Mi Historial', icon: Activity });
+  } else {
+    navItems.push({ path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard });
+  }
 
   if (user?.rol === 'admin' || user?.rol === 'auditor') {
     navItems.push({ path: '/audit-logs', label: 'Logs de Auditoría', icon: Shield });
