@@ -5,7 +5,13 @@ from sqlalchemy.orm import sessionmaker # fabrica de sesiones para interactuar c
 from app.config import DATABASE_URL # url de conexion desde el archivo de configuracion
 
 # crea el motor de conexion a postgresql
-engine = create_engine(DATABASE_URL, pool_pre_ping=True) # pool_pre_ping verifica que la conexion este viva antes de usarla
+# si DATABASE_URL no tiene el dialecto especificado, agregar +psycopg
+if DATABASE_URL.startswith("postgresql://"):
+    database_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://")
+else:
+    database_url = DATABASE_URL
+
+engine = create_engine(database_url, pool_pre_ping=True) # pool_pre_ping verifica que la conexion este viva antes de usarla
 
 # crea la clase sessionlocal para crear sesiones de base de datos
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) # autocommit=false para controlar transacciones manualmente
