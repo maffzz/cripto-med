@@ -88,9 +88,12 @@ def cargar_pacientes(db: Session) -> int: # carga pacientes desde csv
         "Codigo_CIE10": "codigo_cie10"
     }
     
-    for _, row in df.iterrows(): # itera sobre cada fila
+    for index, row in df.iterrows(): # itera sobre cada fila
+        # limpia el nombre: title case (solo primeras letras mayusculas)
+        nombre_limpio = str(row["Name"]).title() # convierte a title case
+        
         # campos sensibles que deben cifrarse
-        nombre_cifrado = encrypt(str(row["Name"])) # cifra el nombre
+        nombre_cifrado = encrypt(nombre_limpio) # cifra el nombre limpio
         diagnostico_cifrado = encrypt(str(row["Medical Condition"])) # cifra el diagnostico
         monto_cifrado = encrypt(str(row["Billing Amount"])) # cifra el monto
         medicacion_cifrado = encrypt(str(row["Medication"])) # cifra la medicacion
@@ -101,6 +104,9 @@ def cargar_pacientes(db: Session) -> int: # carga pacientes desde csv
         diagnostico_ref = db.query(DiagnosticoCIE10).filter(DiagnosticoCIE10.codigo == codigo_cie10).first()
         if not diagnostico_ref: # si no existe, usa null
             codigo_cie10 = None
+        
+        # 40% de pacientes activos (sin fecha de alta)
+        fecha_alta = row["Discharge Date"] if (index % 100) >= 40 else None
         
         # crea el paciente
         paciente = Paciente(
@@ -117,7 +123,7 @@ def cargar_pacientes(db: Session) -> int: # carga pacientes desde csv
             monto_facturado=monto_cifrado, # monto cifrado
             numero_habitacion=int(row["Room Number"]), # numero de habitacion
             tipo_admision=row["Admission Type"], # tipo de admision
-            fecha_alta=row["Discharge Date"], # fecha de alta
+            fecha_alta=fecha_alta, # fecha de alta (null para activos)
             medicacion=medicacion_cifrado, # medicacion cifrada
             resultado_test=resultado_cifrado # resultado cifrado
         )

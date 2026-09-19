@@ -181,7 +181,7 @@ sequenceDiagram
 |---|---|---|---|---|---|---|
 | **Administrador** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Doctor** | ✅ | ✅ (asignados) | ✅ (asignados) | ✅ (asignados) | ❌ | ❌ |
-| **Administrativo** | ✅ | ✅ (datos básicos) | ❌ | ✅ (admisión/facturación) | ❌ | ❌ |
+| **Administrativo** | ✅ | ✅ (datos básicos) | ✅ (facturación) | ✅ (admisión/facturación) | ❌ | ❌ |
 | **Auditor** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ (solo lectura) |
 
 ## Seguridad
@@ -344,7 +344,3 @@ Toda la documentación detallada del proyecto se encuentra en la carpeta `/docs/
 - Cifrado a nivel de columna con rotación periódica de llaves (key rotation)
 - Web Application Firewall (WAF) delante del backend
 - Anonimización/seudonimización de datos en entornos de prueba
-
----
-
-**Proyecto académico — DS3031, Ética y Seguridad de Datos.** Desarrollado con apoyo de IA generativa para aceleración de código, según lo permitido por el esquema del curso.
