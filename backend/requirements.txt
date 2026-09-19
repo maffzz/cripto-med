@@ -2,7 +2,7 @@ fastapi==0.115.0 # framework web para la api
 uvicorn[standard]==0.32.0 # servidor asincrono para fastapi
 python-multipart==0.0.9 # soporte para form-data
 sqlalchemy==2.0.35 # orm para base de datos
-psycopg2-binary==2.9.9 # driver de postgresql
+psycopg==3.2.3 # driver de postgresql (compatible con Python 3.14)
 alembic==1.13.3 # migraciones de base de datos
 passlib[bcrypt]==1.7.4 # hashing de contraseñas con bcrypt
 python-jose[cryptography]==3.3.0 # tokens jwt
