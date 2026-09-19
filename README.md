@@ -328,11 +328,21 @@ Toda la documentación detallada del proyecto se encuentra en la carpeta `/docs/
 - `docs/FUTURE_RECOMMENDATIONS.md` - Recomendaciones futuras de seguridad
 
 **Documentación de Proyecto:**
-- `docs/FINAL_REPORT.md` - Informe final completo (diseño, motivación, trasfondo teórico, requerimientos, implementación, lecciones aprendidas, retrospectiva)
+- `docs/FINAL_REPORT.md` - Informe final completo (diseño, motivación, trasfondo teérico, requerimientos, implementación, lecciones aprendidas, retrospectiva)
 
 **Documentación de Setup:**
 - `SETUP_GUIDE.md` - Guía de setup del proyecto
 - `README.md` - Este archivo
+
+**Capturas de Pantalla:**
+- `docs/images/login.png` - Pantalla de login
+- `docs/images/admin_sistema_dashboard.png` - Dashboard del admin
+- `docs/images/admin_sistema_logs.png` - Logs de auditoría del admin
+- `docs/images/admin_clinica_dashboard.png` - Dashboard del administrativo
+- `docs/images/doctor_dashboard.png` - Dashboard del doctor
+- `docs/images/auditor_dashboard_denegado.png - Auditor sin acceso a dashboard
+- `docs/images/auditor_logs.png` - Logs de auditoría del auditor
+- `docs/images/JWT_logs.png` - Headers JWT en Network tab
 
 **Scripts:**
 - `backend/scripts/backup_db.sh` - Script de backup de PostgreSQL
@@ -344,3 +354,54 @@ Toda la documentación detallada del proyecto se encuentra en la carpeta `/docs/
 - Cifrado a nivel de columna con rotación periódica de llaves (key rotation)
 - Web Application Firewall (WAF) delante del backend
 - Anonimización/seudonimización de datos en entornos de prueba
+
+---
+
+## Despliegue en la nube
+
+### Frontend (GitHub Pages)
+
+El frontend está desplegado en GitHub Pages: https://maffzz.github.io/cripto-med/
+
+**Despliegue automático:**
+- Cada push a la rama `main` activa el despliegue
+- El build se realiza automáticamente con `npm run build`
+- Los archivos estáticos se publican en GitHub Pages
+
+### Backend (Render)
+
+El backend está configurado para desplegarse en Render usando `render.yaml`.
+
+**Pasos para desplegar:**
+
+1. **Crear cuenta en Render:** https://render.com/
+
+2. **Conectar repositorio:**
+   - Click en "New +"
+   - "Web Service"
+   - Conectar tu repositorio de GitHub
+   - Render detectará automáticamente el archivo `render.yaml`
+
+3. **Configurar variables de entorno:**
+   - Render configurará automáticamente `DATABASE_URL` (PostgreSQL)
+   - `JWT_SECRET` (generado automáticamente)
+   - `ENCRYPTION_KEY` (generado automáticamente)
+   - `USE_HTTPS` = "true"
+
+4. **Ejecutar scripts de setup:**
+   - Render ejecutará automáticamente los scripts de setup
+   - Las tablas se crearán automáticamente
+   - Los datos se cargarán automáticamente
+
+5. **Actualizar frontend:**
+   - La URL del backend será: `https://criptomed-backend.onrender.com`
+   - Esta URL ya está configurada en `frontend/.env.production`
+
+**Documentación de Render:**
+- Archivo de configuración: `render.yaml`
+- Scripts de setup: `backend/scripts/setup_db_render.py`, `backend/scripts/seed_db_render.py`
+- Base de datos: PostgreSQL gratuito en Render
+
+**Nota:**
+- El plan gratuito de Render tiene limitaciones (spindown después de 15 min de inactividad)
+- Para producción se recomienda usar un plan de pago

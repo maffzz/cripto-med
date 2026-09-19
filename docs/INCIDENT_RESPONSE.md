@@ -196,6 +196,22 @@ Este documento describe el plan de respuesta ante incidentes de seguridad para e
 - Alertas automáticas para actividad sospechosa
 - Reportes diarios de estado
 
+---
+
+## Evidencia de Implementación
+
+**Logs de Auditoría del Admin:**
+![Logs Admin](images/admin_sistema_logs.png)
+- Sistema de logs inmutables registrando cada acción
+- Usuario, acción, recurso, timestamp, IP origen
+- Evidencia para investigación de incidentes
+
+**Logs de Auditoría del Auditor:**
+![Logs Auditor](images/auditor_logs.png)
+- Acceso de solo lectura para auditoría
+- Los logs son inmutables y no pueden ser modificados
+- Trazabilidad completa de acciones del sistema
+
 ### 3.5 Fase 5: Post-Incidente (72 horas+)
 
 #### 3.5.1 Investigación Forense

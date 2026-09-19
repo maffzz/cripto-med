@@ -7,7 +7,7 @@ from app.database import get_db
 from app.models import Paciente, RolEnum
 from app.schemas import PacienteCreate, PacienteResponse
 from app.rbac import require_role
-from app.crypto import encrypt, decrypt  # Importamos tus funciones de cifrado
+from app.crypto import encrypt, decrypt  # Importamos las funciones de cifrado
 
 router = APIRouter(prefix="/pacientes", tags=["Pacientes"])
 
