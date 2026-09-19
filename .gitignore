@@ -4,6 +4,7 @@ __pycache__/
 *.py[cod]
 *.db
 .env
+.env.*
 certs/*.pem
 backend/certs/*.pem
 .DS_Store
