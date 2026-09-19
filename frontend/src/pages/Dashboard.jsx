@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { API_CONFIG } from '../config';
 import { Users, Activity, Clock, AlertCircle, Search, Filter, MoreVertical, Shield } from 'lucide-react';
 
 const Dashboard = () => {
@@ -15,8 +16,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchPacientes = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-        const response = await axios.get(`${apiUrl}/pacientes`);
+        const response = await axios.get(`${API_CONFIG.URL}/pacientes`);
         setPacientes(response.data);
       } catch (err) {
         console.error('error al obtener pacientes:', err);

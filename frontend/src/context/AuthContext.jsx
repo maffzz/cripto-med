@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'; // hooks de react
 import axios from 'axios'; // cliente http
+import { API_CONFIG } from '../config'; // configuracion de API
 
 const AuthContext = createContext(null); // crea el contexto de autenticacion
 
@@ -23,8 +24,7 @@ export const AuthProvider = ({ children }) => { // proveedor del contexto
       const storedToken = localStorage.getItem('token'); // obtiene token del localstorage
       if (storedToken) {
         try {
-          const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-          const response = await axios.get(`${apiUrl}/auth/me`); // llama al endpoint /auth/me
+          const response = await axios.get(`${API_CONFIG.URL}/auth/me`); // llama al endpoint /auth/me
           setUser(response.data); // guarda el usuario en el estado
           setToken(storedToken); // guarda el token en el estado
         } catch (error) {
@@ -44,9 +44,8 @@ export const AuthProvider = ({ children }) => { // proveedor del contexto
       formData.append('username', email); // añade email
       formData.append('password', password); // añade password
       
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-      console.log('login attempt:', email, apiUrl);
-      const response = await axios.post(`${apiUrl}/auth/login`, formData); // llama al endpoint de login
+      console.log('login attempt:', email, API_CONFIG.URL);
+      const response = await axios.post(`${API_CONFIG.URL}/auth/login`, formData); // llama al endpoint de login
       const { access_token } = response.data; // obtiene el token
       
       console.log('token received');
@@ -56,7 +55,7 @@ export const AuthProvider = ({ children }) => { // proveedor del contexto
       // configura header manualmente para la siguiente peticion
       axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`; // añade header
       
-      const userResponse = await axios.get(`${apiUrl}/auth/me`); // obtiene datos del usuario
+      const userResponse = await axios.get(`${API_CONFIG.URL}/auth/me`); // obtiene datos del usuario
       console.log('user received:', userResponse.data);
       setUser(userResponse.data); // guarda usuario en estado
       
