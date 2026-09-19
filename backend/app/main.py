@@ -17,7 +17,10 @@ app = FastAPI( # instancia principal de la aplicacion
 # --- Configuración de CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permitir solicitudes desde cualquier origen
+    allow_origins=[
+        "http://localhost:5173",
+        "https://maffzz.github.io"
+    ],  # Permitir solicitudes desde frontend local y GitHub Pages
     allow_credentials=True,
     allow_methods=["*"],  # Permitir todos los métodos HTTP
     allow_headers=["*"],  # Permitir todos los encabezados

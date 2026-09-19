@@ -157,6 +157,16 @@ const response = await axios.post('http://127.0.0.1:8000/auth/login', formData);
    - Cambiar `http://127.0.0.1:8000` a `https://criptomed.utec.edu.pe`
    - Usar variable de entorno para diferenciar desarrollo/producción
 
+---
+
+## Evidencia de Implementación
+
+**JWT Headers en Network Tab:**
+![JWT Headers](images/JWT_logs.png)
+- Demuestra que las llamadas al backend incluyen el header `Authorization: Bearer <token>`
+- El token JWT se envía en cada request autenticado
+- Validación de que la autenticación JWT está funcionando correctamente
+
 4. **Actualizar firewall:**
    - Abrir puerto 443 o 8443
    - Configurar reglas de firewall

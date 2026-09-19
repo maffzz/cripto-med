@@ -775,6 +775,51 @@ El proyecto demuestra que es posible implementar medidas de seguridad efectivas 
 - NIST 800-63B: Digital Identity Guidelines
 - PCI DSS: Payment Card Industry Data Security Standard
 
+### 10.2 Capturas de Pantalla
+
+**Screenshot 1: Login de CriptoMed**
+![Login](images/login.png)
+- Pantalla de login con formulario email/contraseña
+- Usuarios de prueba listados para demostración
+
+**Screenshot 2: Dashboard del Admin**
+![Dashboard Admin](images/admin_sistema_dashboard.png)
+- Dashboard del administrador con lista de pacientes
+- Estadísticas: Total de pacientes, pacientes activos, rol
+- Búsqueda y filtros por estado
+
+**Screenshot 3: Logs de Auditoría del Admin**
+![Logs Admin](images/admin_sistema_logs.png)
+- Logs de auditoría visibles para el administrador
+- Tabla con usuario, acción, recurso, timestamp, IP
+- Paginación para navegar logs
+
+**Screenshot 4: Dashboard del Administrativo**
+![Dashboard Administrativo](images/admin_clinica_dashboard.png)
+- Dashboard del administrativo con lista de pacientes
+- Permisos: datos básicos y facturación, sin diagnóstico detallado
+
+**Screenshot 5: Dashboard del Doctor**
+![Dashboard Doctor](images/doctor_dashboard.png)
+- Dashboard del doctor con lista de pacientes
+- Cards de pacientes con información relevante
+
+**Screenshot 6: Auditor sin acceso a Dashboard**
+![Dashboard Auditor Denegado](images/auditor_dashboard_denegado.png)
+- El auditor no puede acceder al dashboard (RBAC funcionando)
+- Solo puede acceder a logs de auditoría
+
+**Screenshot 7: Logs de Auditoría del Auditor**
+![Logs Auditor](images/auditor_logs.png)
+- Logs de auditoría visibles para el auditor
+- Solo lectura, sin posibilidad de modificar
+
+**Screenshot 8: Headers JWT en Network Tab**
+![JWT Headers](images/JWT_logs.png)
+- Network tab del navegador mostrando headers
+- Header `Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
+- Demuestra que JWT se envía correctamente en cada request
+
 ### 10.3 Código Fuente
 
 **Repositorio:** [URL de GitHub]

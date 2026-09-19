@@ -147,6 +147,40 @@ DELETE /usuarios/{id}
 - Los datos personales se anonimizan después de 6 meses
 
 ### 4.3 Soft Delete
+
+---
+
+## Evidencia de Implementación
+
+**Sistema de Login con Múltiples Roles:**
+![Login](images/login.png)
+- Pantalla de login con email/contraseña
+- Usuarios de prueba para cada rol
+
+**Dashboard del Admin:**
+![Dashboard Admin](images/admin_sistema_dashboard.png)
+- El admin tiene acceso completo a todos los pacientes
+- Puede ver diagnósticos completos y facturación
+
+**Dashboard del Administrativo:**
+![Dashboard Administrativo](images/admin_clinica_dashboard.png)
+- El administrativo puede ver pacientes (datos básicos)
+- Restricciones según principio de mínimo privilegio
+
+**Dashboard del Doctor:**
+![Dashboard Doctor](images/doctor_dashboard.png)
+- El doctor puede ver pacientes asignados
+- Acceso a diagnóstico completo
+
+**Auditor sin acceso a Dashboard:**
+![Dashboard Auditor Denegado](images/auditor_dashboard_denegado.png)
+- El auditor no puede acceder al dashboard (RBAC funcionando)
+- Solo puede acceder a logs de auditoría
+
+**Logs de Auditoría del Auditor:**
+![Logs Auditor](images/auditor_logs.png)
+- El auditor tiene acceso de solo lectura a logs
+- No puede modificar ni eliminar logs
 - En lugar de eliminar, marcar como `activo: false`
 - Los datos se conservan en la base de datos
 - El usuario no puede hacer login pero sus datos persisten
