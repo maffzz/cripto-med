@@ -15,46 +15,29 @@ app = FastAPI( # instancia principal de la aplicacion
     version="0.1.0", # version inicial del api
 )
 
-# Inicializar base de datos al inicio (crear tablas y usuarios si no existen)
+# Inicialización de base de datos forzada por esta vez
 @app.on_event("startup")
 def startup_event():
     print("=== STARTUP EVENT ===")
-    initialize_database()
     
-    # Migración automática de base de datos (forzar migración si hay error en inicialización)
-    # Se activa si la inicialización falla debido a campos faltantes
-    from app.database import engine, SessionLocal
+    # Migración forzada por esta vez - eliminar y recrear todas las tablas
+    print("=== MIGRACIÓN FORZADA DE BASE DE DATOS ===")
+    from app.database import engine
     from app.models import Base
-    from sqlalchemy import inspect, text
     
-    try:
-        # Verificar si el campo usuario_id existe en pacientes
-        inspector = inspect(engine)
-        pacientes_columns = [col['name'] for col in inspector.get_columns('pacientes')]
-        
-        if 'usuario_id' not in pacientes_columns:
-            print("Campo usuario_id no existe. Ejecutando migración automática...")
-            print("=== MIGRACIÓN AUTOMÁTICA DE BASE DE DATOS ===")
-            
-            print("Eliminando tablas existentes...")
-            Base.metadata.drop_all(bind=engine)
-            print("Tablas eliminadas")
-            
-            print("Creando tablas con el nuevo modelo...")
-            Base.metadata.create_all(bind=engine)
-            print("Tablas creadas con el nuevo modelo")
-            
-            print("Ejecutando inicialización con el nuevo seed...")
-            initialize_database()
-            print("Inicialización completada")
-            
-            print("=== MIGRACIÓN COMPLETADA ===")
-        else:
-            print("Campo usuario_id existe. Modelo actualizado correctamente.")
-            
-    except Exception as e:
-        print(f"Error durante verificación de migración: {e}")
-        print("Continuando con el modelo existente...")
+    print("Eliminando todas las tablas existentes...")
+    Base.metadata.drop_all(bind=engine)
+    print("Tablas eliminadas")
+    
+    print("Creando tablas con el nuevo modelo...")
+    Base.metadata.create_all(bind=engine)
+    print("Tablas creadas con el nuevo modelo")
+    
+    print("Ejecutando inicialización con el nuevo seed...")
+    initialize_database()
+    print("Inicialización completada")
+    
+    print("=== MIGRACIÓN COMPLETADA ===")
 
 # --- Configuración de CORS ---
 app.add_middleware(
