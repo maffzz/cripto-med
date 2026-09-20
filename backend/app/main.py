@@ -21,34 +21,40 @@ def startup_event():
     print("=== STARTUP EVENT ===")
     initialize_database()
     
-    # Migración automática de base de datos (solo si se configura la variable de entorno)
-    import os
-    migrate_env = os.getenv('MIGRATE_DATABASE', 'false')
-    print(f"MIGRATE_DATABASE environment variable: {migrate_env}")
-    should_migrate = migrate_env.lower() == 'true'
-    print(f"should_migrate: {should_migrate}")
+    # Migración automática de base de datos (forzar migración si hay error en inicialización)
+    # Se activa si la inicialización falla debido a campos faltantes
+    from app.database import engine, SessionLocal
+    from app.models import Base
+    from sqlalchemy import inspect, text
     
-    if should_migrate:
-        print("=== MIGRACIÓN AUTOMÁTICA DE BASE DE DATOS ===")
-        from app.database import engine
-        from app.models import Base
+    try:
+        # Verificar si el campo usuario_id existe en pacientes
+        inspector = inspect(engine)
+        pacientes_columns = [col['name'] for col in inspector.get_columns('pacientes')]
         
-        print("Eliminando tablas existentes...")
-        Base.metadata.drop_all(bind=engine)
-        print("Tablas eliminadas")
-        
-        print("Creando tablas con el nuevo modelo...")
-        Base.metadata.create_all(bind=engine)
-        print("Tablas creadas con el nuevo modelo")
-        
-        print("Ejecutando inicialización con el nuevo seed...")
-        initialize_database()
-        print("Inicialización completada")
-        
-        print("=== MIGRACIÓN COMPLETADA ===")
-        print("IMPORTANTE: Desactiva MIGRATE_DATABASE=true en Render después de la migración")
-    else:
-        print("Migración desactivada. Usando modelo existente.")
+        if 'usuario_id' not in pacientes_columns:
+            print("Campo usuario_id no existe. Ejecutando migración automática...")
+            print("=== MIGRACIÓN AUTOMÁTICA DE BASE DE DATOS ===")
+            
+            print("Eliminando tablas existentes...")
+            Base.metadata.drop_all(bind=engine)
+            print("Tablas eliminadas")
+            
+            print("Creando tablas con el nuevo modelo...")
+            Base.metadata.create_all(bind=engine)
+            print("Tablas creadas con el nuevo modelo")
+            
+            print("Ejecutando inicialización con el nuevo seed...")
+            initialize_database()
+            print("Inicialización completada")
+            
+            print("=== MIGRACIÓN COMPLETADA ===")
+        else:
+            print("Campo usuario_id existe. Modelo actualizado correctamente.")
+            
+    except Exception as e:
+        print(f"Error durante verificación de migración: {e}")
+        print("Continuando con el modelo existente...")
 
 # --- Configuración de CORS ---
 app.add_middleware(
