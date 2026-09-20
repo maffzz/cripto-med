@@ -20,24 +20,36 @@ app = FastAPI( # instancia principal de la aplicacion
 def startup_event():
     print("=== STARTUP EVENT ===")
     
-    # Migración forzada por esta vez - eliminar y recrear todas las tablas
-    print("=== MIGRACIÓN FORZADA DE BASE DE DATOS ===")
+    # Primero responder en el puerto para que Render detecte que el servicio está live
+    print("Servicio iniciando...")
+    
+    # Ejecutar migración en segundo plano para no bloquear el startup
+    import asyncio
     from app.database import engine
     from app.models import Base
     
-    print("Eliminando todas las tablas existentes...")
-    Base.metadata.drop_all(bind=engine)
-    print("Tablas eliminadas")
+    async def run_migration():
+        try:
+            print("=== MIGRACIÓN FORZADA DE BASE DE DATOS ===")
+            
+            print("Eliminando todas las tablas existentes...")
+            Base.metadata.drop_all(bind=engine)
+            print("Tablas eliminadas")
+            
+            print("Creando tablas con el nuevo modelo...")
+            Base.metadata.create_all(bind=engine)
+            print("Tablas creadas con el nuevo modelo")
+            
+            print("Ejecutando inicialización con el nuevo seed...")
+            initialize_database()
+            print("Inicialización completada")
+            
+            print("=== MIGRACIÓN COMPLETADA ===")
+        except Exception as e:
+            print(f"Error durante migración: {e}")
     
-    print("Creando tablas con el nuevo modelo...")
-    Base.metadata.create_all(bind=engine)
-    print("Tablas creadas con el nuevo modelo")
-    
-    print("Ejecutando inicialización con el nuevo seed...")
-    initialize_database()
-    print("Inicialización completada")
-    
-    print("=== MIGRACIÓN COMPLETADA ===")
+    # Crear tarea asíncrona para migración
+    asyncio.create_task(run_migration())
 
 # --- Configuración de CORS ---
 app.add_middleware(
