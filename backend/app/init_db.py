@@ -232,27 +232,34 @@ def check_and_load_pacientes():
                 session.add(paciente)
                 contador_pacientes += 1
                 
-                # Commit cada 1000 pacientes para no saturar memoria
-                if contador_pacientes % 1000 == 0:
-                    session.commit()
-                    print(f"Progreso: {contador_pacientes}/{len(df_pacientes)} pacientes cargados")
+                # Commit cada 250 pacientes para reducir carga en memoria y conexión
+                if contador_pacientes % 250 == 0:
+                    try:
+                        session.commit()
+                        print(f"Progreso: {contador_pacientes}/{len(df_pacientes)} pacientes cargados")
+                    except Exception as e:
+                        print(f"Error al hacer commit intermedio: {e}")
+                        session.rollback()
             
             session.commit()
             print(f"Se cargaron {contador_pacientes} pacientes")
 
             # Vincular el paciente demo con el primer paciente del CSV
-            print("Vinculando paciente demo con su cuenta...")
-            paciente_demo_usuario = session.query(Usuario).filter(
-                Usuario.email == "paciente.demo@criptomed.pe"
-            ).first()
+            try:
+                print("Vinculando paciente demo con su cuenta...")
+                paciente_demo_usuario = session.query(Usuario).filter(
+                    Usuario.email == "paciente.demo@criptomed.pe"
+                ).first()
 
-            if paciente_demo_usuario:
-                # Obtener el primer paciente del CSV (ya cargado)
-                primer_paciente = session.query(Paciente).first()
-                if primer_paciente:
-                    primer_paciente.usuario_id = paciente_demo_usuario.id
-                    session.commit()
-                    print(f"Paciente demo vinculado con su cuenta: {primer_paciente.nombre_descifrado}")
+                if paciente_demo_usuario:
+                    # Obtener el primer paciente del CSV (ya cargado)
+                    primer_paciente = session.query(Paciente).first()
+                    if primer_paciente:
+                        primer_paciente.usuario_id = paciente_demo_usuario.id
+                        session.commit()
+                        print(f"Paciente demo vinculado con su cuenta: {primer_paciente.nombre_descifrado}")
+            except Exception as e:
+                print(f"Error al vincular paciente demo: {e}")
 
             return True
         else:
