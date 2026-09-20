@@ -48,7 +48,7 @@ def startup_event():
             sys.stdout.flush()
             
             from app.database import engine, SessionLocal
-            from app.models import Base, Usuario
+            from app.models import Base, Usuario, Paciente
             from sqlalchemy import inspect
             
             # Verificar si el modelo es correcto (campo usuario_id en pacientes)
@@ -59,8 +59,26 @@ def startup_event():
             except:
                 has_usuario_id = False
             
-            if not has_usuario_id:
-                print("Modelo antiguo detectado, eliminando tablas y recreando con datos...", flush=True)
+            # Verificar si hay pacientes con usuario_id asignado
+            needs_migration = False
+            if has_usuario_id:
+                db = SessionLocal()
+                try:
+                    # Verificar si hay algún paciente con usuario_id asignado
+                    paciente_con_usuario = db.query(Paciente).filter(Paciente.usuario_id != None).first()
+                    if not paciente_con_usuario:
+                        print("Campo usuario_id existe pero ningún paciente tiene usuario asignado. Se requiere migración.", flush=True)
+                        sys.stdout.flush()
+                        needs_migration = True
+                finally:
+                    db.close()
+            else:
+                print("Campo usuario_id no existe. Se requiere migración.", flush=True)
+                sys.stdout.flush()
+                needs_migration = True
+            
+            if needs_migration:
+                print("Eliminando tablas y recreando con datos...", flush=True)
                 sys.stdout.flush()
                 
                 Base.metadata.drop_all(bind=engine)
@@ -75,7 +93,7 @@ def startup_event():
                 print("=== CARGA DE DATOS COMPLETADA ===", flush=True)
                 sys.stdout.flush()
             else:
-                print("Modelo actualizado correcto. No se requiere migración.", flush=True)
+                print("Modelo y datos correctos. No se requiere migración.", flush=True)
                 sys.stdout.flush()
         except Exception as e:
             print(f"Error en carga de datos en segundo plano: {e}", flush=True)
