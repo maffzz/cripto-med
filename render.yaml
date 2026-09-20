@@ -19,7 +19,7 @@ services:
       - key: USE_HTTPS
         value: "true"
       - key: MIGRATE_DATABASE
-        value: "false"
+        value: "true"
 
 databases:
   - name: criptomed-db
