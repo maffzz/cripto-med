@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { API_CONFIG } from '../config';
-import { ArrowLeft, User, Activity, FileText, Calendar, CreditCard, Building2, Stethoscope, Syringe, TestTube } from 'lucide-react';
+import { ArrowLeft, User, Activity, FileText, Calendar, CreditCard, Building2, Stethoscope, Syringe, TestTube, Edit, Trash2, Plus, AlertTriangle } from 'lucide-react';
 
 const PacienteDetalle = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [paciente, setPaciente] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     const fetchPaciente = async () => {
@@ -199,6 +202,86 @@ const PacienteDetalle = () => {
           </span>
         </div>
       </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-3">
+        {user?.rol === 'admin' && (
+          <>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Crear Paciente</span>
+            </button>
+            <button
+              onClick={() => alert('Función de editar - Pendiente de implementar')}
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+            >
+              <Edit className="w-5 h-5" />
+              <span>Editar Historial</span>
+            </button>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+            >
+              <Trash2 className="w-5 h-5" />
+              <span>Borrar Paciente</span>
+            </button>
+          </>
+        )}
+        {user?.rol === 'doctor' && (
+          <button
+            onClick={() => alert('Función de editar - Pendiente de implementar')}
+            className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+          >
+            <Edit className="w-5 h-5" />
+            <span>Editar Historial</span>
+          </button>
+        )}
+        {user?.rol === 'administrativo' && (
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Crear Paciente</span>
+          </button>
+        )}
+      </div>
+
+      {/* Delete Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
+              <h3 className="text-xl font-semibold text-gray-900">Confirmar Borrado</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              ¿Estás seguro de que quieres borrar a {paciente.nombre_descifrado}? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  // Aquí iría la lógica de borrado
+                  alert('Función de borrado - Pendiente de implementar');
+                  setShowDeleteModal(false);
+                }}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Borrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

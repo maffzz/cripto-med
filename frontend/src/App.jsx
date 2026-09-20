@@ -27,6 +27,9 @@ const RoleBasedRedirect = () => {
   if (user.rol === 'paciente') {
     return <Navigate to="/mi-historial" replace />;
   }
+  if (user.rol === 'auditor') {
+    return <Navigate to="/audit-logs" replace />;
+  }
   return <Navigate to="/dashboard" replace />;
 };
 
