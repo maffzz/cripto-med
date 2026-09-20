@@ -521,7 +521,138 @@ git push origin gh-pages
 
 ---
 
-## 7. Lecciones Aprendidas
+## 7. Herramientas de Análisis de Seguridad
+
+### 7.1 Herramientas de Análisis Estático (SAST)
+
+**Bandit (Python)**
+- **Propósito:** Detectar vulnerabilidades comunes en código Python
+- **Uso propuesto:** `bandit -r backend/`
+- **Qué detecta:** Hardcoded secrets, uso inseguro de funciones, SQL injection potencial
+- **Estado:** Propuesto para implementación en CI/CD
+
+**SonarQube**
+- **Propósito:** Análisis continuo de calidad y seguridad del código
+- **Uso propuesto:** Integración en pipeline de CI/CD
+- **Qué detecta:** Code smells, bugs, vulnerabilidades, duplicación de código
+- **Estado:** Propuesto para implementación futura
+
+### 7.2 Herramientas de Análisis Dinámico (DAST)
+
+**OWASP ZAP (Zed Attack Proxy)**
+- **Propósito:** Escaneo automatizado de vulnerabilidades web
+- **Uso propuesto:** 
+  ```bash
+  zap-baseline.py -t https://cripto-med.onrender.com
+  ```
+- **Qué detecta:** XSS, SQL injection, CSRF, configuración insegura de headers
+- **Estado:** Propuesto para pruebas pre-producción
+
+**SQLMap**
+- **Propósito:** Pruebas de inyección SQL
+- **Uso propuesto:** `sqlmap -u "https://cripto-med.onrender.com/pacientes/1" --batch`
+- **Qué detecta:** SQL injection en endpoints con parámetros
+- **Estado:** Propuesto para pruebas de penetración controladas
+
+### 7.3 Herramientas de Análisis de Dependencias
+
+**Safety**
+- **Propósito:** Detectar dependencias con vulnerabilidades conocidas
+- **Uso propuesto:** `safety check backend/requirements.txt`
+- **Qué detecta:** CVEs en paquetes Python
+- **Estado:** Propuesto para implementación en CI/CD
+
+**npm audit**
+- **Propósito:** Detectar vulnerabilidades en dependencias JavaScript
+- **Uso propuesto:** `npm audit` en directorio frontend
+- **Qué detecta:** CVEs en paquetes npm
+- **Estado:** Propuesto para implementación en CI/CD
+
+### 7.4 Plan de Implementación
+
+**Fase 1 (Actual):**
+- Verificar manualmente que no hay hardcoded secrets
+- Revisar código SQL para detectar injection potencial
+- Verificar configuración de CORS y headers
+
+**Fase 2 (Corto plazo):**
+- Implementar Bandit en CI/CD
+- Ejecutar OWASP ZAP en staging
+- Implementar Safety y npm audit
+
+**Fase 3 (Mediano plazo):**
+- Implementar SonarQube para análisis continuo
+- Integrar pruebas de seguridad en pipeline
+- Implementar escaneos regulares con OWASP ZAP
+
+### 7.5 Extensión: Auto-Gestión de Accesos por Parte del Paciente
+
+**Nueva funcionalidad implementada:** Login de paciente y transferencia de doctor
+
+**Descripción:**
+Se implementó un mecanismo de auto-gestión de accesos por parte del paciente que refuerza el principio de mínimo privilegio y se alinea con los derechos ARCO reconocidos en la Ley N° 29733.
+
+**Características:**
+- **Rol paciente:** Nuevo rol en el sistema que permite a los pacientes iniciar sesión y acceder a su propio historial médico
+- **Auto-gestión de accesos:** El paciente puede transferir el acceso a su historial de un doctor a otro sin intervención de un administrador
+- **Trazabilidad completa:** Cada transferencia queda registrada en el log de auditoría con:
+  - Doctor anterior
+  - Doctor nuevo
+  - Usuario que ejecutó la acción (el propio paciente)
+  - Timestamp
+  - IP address cuando disponible
+
+**Diseño de la transferencia:**
+```
+┌─────────────┐         ┌──────────────┐         ┌─────────────┐
+│  Paciente   │────────▶│  Backend     │────────▶│   Doctor    │
+│  (Usuario)  │  POST   │  /pacientes/ │  UPDATE │  Nuevo      │
+│             │  /me    │  /transferir │         │  Asignado   │
+└─────────────┘         └──────────────┘         └─────────────┘
+                               │
+                               ▼
+                        ┌──────────────┐
+                        │  Audit Log   │
+                        │  (Transfer   │
+                        │   Action)    │
+                        └──────────────┘
+```
+
+**Modelo de datos actualizado:**
+- `Paciente.usuario_id`: FK opcional hacia `usuarios.id` para vincular paciente con su cuenta de login
+- `AccionEnum.transferencia`: Nuevo valor en el enum de acciones de auditoría
+- `AuditLog.detalle`: Campo extra para guardar el detalle de la transferencia (doctor_anterior, doctor_nuevo)
+
+**Endpoints implementados:**
+- `GET /pacientes/me`: Retorna el historial del paciente autenticado
+- `GET /pacientes/doctores`: Lista doctores disponibles para transferencia
+- `PATCH /pacientes/{id}/transferir-doctor`: Transfiere el paciente a otro doctor
+
+**Permisos:**
+- Admin puede transferir cualquier paciente
+- Paciente puede transferir su propio historial
+- Otros roles no pueden transferir pacientes
+
+**Cumplimiento normativo:**
+Esta funcionalidad refuerza el cumplimiento con la Ley N° 29733, específicamente:
+- **Derecho de acceso:** El paciente puede acceder a su propia información
+- **Derecho de rectificación:** El paciente puede controlar quién accede a su información
+- **Derecho de oposición:** El paciente puede cambiar el doctor asignado
+- **Principio de mínimo privilegio:** Solo el doctor actualmente asignado tiene acceso al historial completo
+
+**Demostración en vivo:**
+El flujo de demostración incluye:
+1. Login como Doctor A → mostrar solo sus pacientes asignados
+2. Login como Doctor B → verificar que NO ve al paciente demo
+3. Login como Paciente Demo → ver su historial y doctor actual
+4. Paciente transfiere a Doctor B
+5. Login como Doctor B → ahora SÍ ve al paciente demo
+6. Login como Doctor A → ya NO ve al paciente demo
+7. Login como Auditor → ver log de transferencia con detalle completo
+
+---
+
+## 8. Lecciones Aprendidas
 
 ### 7.1 Lecciones Técnicas
 
@@ -583,9 +714,9 @@ git push origin gh-pages
 
 ---
 
-## 8. Retrospectiva del Proyecto
+## 9. Retrospectiva del Proyecto
 
-### 8.1 Qué Salió Bien
+### 9.1 Qué Salió Bien
 
 **1. Stack tecnológico adecuado**
 - FastAPI es moderno y fácil de usar
@@ -611,7 +742,7 @@ git push origin gh-pages
 - Medidas organizativas documentadas
 - Procedimientos de notificación definidos
 
-### 8.2 Qué Podría Mejorar
+### 9.2 Qué Podría Mejorar
 
 **1. Testing automatizado**
 - No hay tests unitarios
@@ -637,7 +768,7 @@ git push origin gh-pages
 - No hay monitoreo de seguridad
 - **Mejora:** Implementar Sentry, Uptime monitoring, alertas
 
-### 8.3 Desafíos Encontrados
+### 9.3 Desafíos Encontrados
 
 **1. Configuración de Docker y PostgreSQL**
 - Conflicto de puertos con Homebrew
@@ -663,7 +794,7 @@ git push origin gh-pages
 - Estructura de rutas anidada
 - **Solución:** Verificar estructura de rutas, usar `<Outlet />` correctamente
 
-### 8.4 Lecciones para el Próximo Proyecto
+### 9.4 Lecciones para el Próximo Proyecto
 
 **1. Probar cada componente incrementalmente**
 - No esperar hasta el final para probar
