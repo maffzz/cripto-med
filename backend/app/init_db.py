@@ -244,7 +244,7 @@ def check_and_load_pacientes():
             session.commit()
             print(f"Se cargaron {contador_pacientes} pacientes")
 
-            # Vincular el paciente demo con el primer paciente del CSV
+            # Vincular el paciente demo con el primer paciente del CSV (Bobby Jackson)
             try:
                 print("Vinculando paciente demo con su cuenta...")
                 paciente_demo_usuario = session.query(Usuario).filter(
@@ -252,12 +252,27 @@ def check_and_load_pacientes():
                 ).first()
 
                 if paciente_demo_usuario:
-                    # Obtener el primer paciente del CSV (ya cargado)
-                    primer_paciente = session.query(Paciente).first()
-                    if primer_paciente:
-                        primer_paciente.usuario_id = paciente_demo_usuario.id
+                    # Buscar paciente sin usuario_id asignado (prioridad: Bobby Jackson)
+                    paciente_sin_usuario = session.query(Paciente).filter(
+                        Paciente.usuario_id == None
+                    ).first()
+                    
+                    if paciente_sin_usuario:
+                        paciente_sin_usuario.usuario_id = paciente_demo_usuario.id
                         session.commit()
-                        print(f"Paciente demo vinculado con su cuenta: {primer_paciente.nombre_descifrado}")
+                        print(f"Paciente demo vinculado con: {paciente_sin_usuario.nombre_descifrado}")
+                    else:
+                        print("Todos los pacientes ya tienen usuario asignado")
+                        # Si todos tienen usuario, buscar al paciente demo por usuario_id
+                        paciente_vinculado = session.query(Paciente).filter(
+                            Paciente.usuario_id == paciente_demo_usuario.id
+                        ).first()
+                        if paciente_vinculado:
+                            print(f"Paciente demo ya vinculado con: {paciente_vinculado.nombre_descifrado}")
+                        else:
+                            print("ERROR: No se pudo vincular paciente demo")
+                else:
+                    print("ERROR: Usuario paciente.demo no encontrado")
             except Exception as e:
                 print(f"Error al vincular paciente demo: {e}")
 

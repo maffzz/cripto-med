@@ -73,6 +73,19 @@ def startup_event():
                         print("Campo usuario_id existe pero ningún paciente tiene usuario asignado. Se requiere migración.", flush=True)
                         sys.stdout.flush()
                         needs_migration = True
+                    else:
+                        # Verificar si el paciente demo está vinculado
+                        paciente_demo_usuario = db.query(Usuario).filter(
+                            Usuario.email == "paciente.demo@criptomed.pe"
+                        ).first()
+                        if paciente_demo_usuario:
+                            paciente_demo_vinculado = db.query(Paciente).filter(
+                                Paciente.usuario_id == paciente_demo_usuario.id
+                            ).first()
+                            if not paciente_demo_vinculado:
+                                print("Modelo correcto pero paciente demo no vinculado. Se requiere recarga de datos.", flush=True)
+                                sys.stdout.flush()
+                                needs_migration = True
                 finally:
                     db.close()
             else:
