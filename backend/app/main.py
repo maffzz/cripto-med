@@ -15,7 +15,7 @@ app = FastAPI( # instancia principal de la aplicacion
     version="0.1.0", # version inicial del api
 )
 
-# Inicialización de base de datos con migración forzada
+# Inicialización de base de datos con migración forzada en segundo plano
 @app.on_event("startup")
 def startup_event():
     print("=== STARTUP EVENT ===", flush=True)
@@ -24,30 +24,64 @@ def startup_event():
     
     from app.database import engine
     from app.models import Base
+    from sqlalchemy import inspect
     
-    print("=== MIGRACIÓN FORZADA DE BASE DE DATOS ===", flush=True)
-    sys.stdout.flush()
+    # Primero crear tablas vacías para que el servicio responda
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
     
-    print("Eliminando todas las tablas existentes...", flush=True)
-    sys.stdout.flush()
-    Base.metadata.drop_all(bind=engine)
-    print("Tablas eliminadas", flush=True)
-    sys.stdout.flush()
+    if not existing_tables:
+        print("Creando tablas básicas...", flush=True)
+        sys.stdout.flush()
+        Base.metadata.create_all(bind=engine)
+        print("Tablas básicas creadas", flush=True)
+        sys.stdout.flush()
     
-    print("Creando tablas con el nuevo modelo...", flush=True)
-    sys.stdout.flush()
-    Base.metadata.create_all(bind=engine)
-    print("Tablas creadas con el nuevo modelo", flush=True)
-    sys.stdout.flush()
+    # Cargar datos en segundo plano después de que el servicio esté live
+    import threading
+    def load_data_background():
+        try:
+            import time
+            time.sleep(2)  # Esperar a que el servicio esté completamente live
+            
+            print("=== CARGA DE DATOS EN SEGUNDO PLANO ===", flush=True)
+            sys.stdout.flush()
+            
+            from app.database import engine
+            from app.models import Base
+            
+            # Verificar si hay datos
+            from app.database import SessionLocal
+            db = SessionLocal()
+            user_count = db.query(Usuario).count()
+            db.close()
+            
+            if user_count == 0:
+                print("No hay usuarios, eliminando tablas y recreando con datos...", flush=True)
+                sys.stdout.flush()
+                
+                Base.metadata.drop_all(bind=engine)
+                print("Tablas eliminadas", flush=True)
+                sys.stdout.flush()
+                
+                Base.metadata.create_all(bind=engine)
+                print("Tablas recreadas", flush=True)
+                sys.stdout.flush()
+                
+                initialize_database()
+                print("=== CARGA DE DATOS COMPLETADA ===", flush=True)
+                sys.stdout.flush()
+            else:
+                print("Datos ya existen", flush=True)
+                sys.stdout.flush()
+        except Exception as e:
+            print(f"Error en carga de datos en segundo plano: {e}", flush=True)
+            sys.stdout.flush()
     
-    print("Ejecutando inicialización con el nuevo seed...", flush=True)
-    sys.stdout.flush()
-    initialize_database()
-    print("Inicialización completada", flush=True)
-    sys.stdout.flush()
-    
-    print("=== MIGRACIÓN COMPLETADA ===", flush=True)
-    sys.stdout.flush()
+    # Iniciar carga de datos en hilo separado
+    thread = threading.Thread(target=load_data_background)
+    thread.daemon = True
+    thread.start()
 
 # --- Configuración de CORS ---
 app.add_middleware(
