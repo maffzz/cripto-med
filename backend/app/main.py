@@ -49,14 +49,18 @@ def startup_event():
             
             from app.database import engine, SessionLocal
             from app.models import Base, Usuario
+            from sqlalchemy import inspect
             
-            # Verificar si hay datos
-            db = SessionLocal()
-            user_count = db.query(Usuario).count()
-            db.close()
+            # Verificar si el modelo es correcto (campo usuario_id en pacientes)
+            inspector = inspect(engine)
+            try:
+                pacientes_columns = [col['name'] for col in inspector.get_columns('pacientes')]
+                has_usuario_id = 'usuario_id' in pacientes_columns
+            except:
+                has_usuario_id = False
             
-            if user_count == 0:
-                print("No hay usuarios, eliminando tablas y recreando con datos...", flush=True)
+            if not has_usuario_id:
+                print("Modelo antiguo detectado, eliminando tablas y recreando con datos...", flush=True)
                 sys.stdout.flush()
                 
                 Base.metadata.drop_all(bind=engine)
@@ -71,7 +75,7 @@ def startup_event():
                 print("=== CARGA DE DATOS COMPLETADA ===", flush=True)
                 sys.stdout.flush()
             else:
-                print("Datos ya existen", flush=True)
+                print("Modelo actualizado correcto. No se requiere migración.", flush=True)
                 sys.stdout.flush()
         except Exception as e:
             print(f"Error en carga de datos en segundo plano: {e}", flush=True)
