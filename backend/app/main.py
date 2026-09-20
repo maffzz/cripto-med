@@ -15,41 +15,11 @@ app = FastAPI( # instancia principal de la aplicacion
     version="0.1.0", # version inicial del api
 )
 
-# Inicialización de base de datos forzada por esta vez
+# Inicialización de base de datos al inicio (crear tablas y usuarios si no existen)
 @app.on_event("startup")
 def startup_event():
     print("=== STARTUP EVENT ===")
-    
-    # Primero responder en el puerto para que Render detecte que el servicio está live
-    print("Servicio iniciando...")
-    
-    # Ejecutar migración en segundo plano para no bloquear el startup
-    import asyncio
-    from app.database import engine
-    from app.models import Base
-    
-    async def run_migration():
-        try:
-            print("=== MIGRACIÓN FORZADA DE BASE DE DATOS ===")
-            
-            print("Eliminando todas las tablas existentes...")
-            Base.metadata.drop_all(bind=engine)
-            print("Tablas eliminadas")
-            
-            print("Creando tablas con el nuevo modelo...")
-            Base.metadata.create_all(bind=engine)
-            print("Tablas creadas con el nuevo modelo")
-            
-            print("Ejecutando inicialización con el nuevo seed...")
-            initialize_database()
-            print("Inicialización completada")
-            
-            print("=== MIGRACIÓN COMPLETADA ===")
-        except Exception as e:
-            print(f"Error durante migración: {e}")
-    
-    # Crear tarea asíncrona para migración
-    asyncio.create_task(run_migration())
+    initialize_database()
 
 # --- Configuración de CORS ---
 app.add_middleware(
@@ -82,6 +52,33 @@ def read_root():
         "mensaje": "Bienvenido a CriptoMed API",
         "docs": "Visita /docs para probar los endpoints de autenticación"
     }
+
+@app.post("/migrate-database")
+def migrate_database():
+    """Endpoint para forzar migración de base de datos (solo para uso manual)"""
+    from app.database import engine
+    from app.models import Base
+    
+    try:
+        print("=== MIGRACIÓN MANUAL DE BASE DE DATOS ===")
+        
+        print("Eliminando todas las tablas existentes...")
+        Base.metadata.drop_all(bind=engine)
+        print("Tablas eliminadas")
+        
+        print("Creando tablas con el nuevo modelo...")
+        Base.metadata.create_all(bind=engine)
+        print("Tablas creadas con el nuevo modelo")
+        
+        print("Ejecutando inicialización con el nuevo seed...")
+        initialize_database()
+        print("Inicialización completada")
+        
+        print("=== MIGRACIÓN COMPLETADA ===")
+        return {"status": "success", "message": "Migración completada"}
+    except Exception as e:
+        print(f"Error durante migración: {e}")
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
