@@ -36,6 +36,9 @@ def startup_event():
         Base.metadata.create_all(bind=engine)
         print("Tablas básicas creadas", flush=True)
         sys.stdout.flush()
+    else:
+        print(f"Tablas existentes: {len(existing_tables)}", flush=True)
+        sys.stdout.flush()
     
     # Cargar datos en segundo plano después de que el servicio esté live
     import threading
