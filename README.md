@@ -92,6 +92,57 @@ flowchart TB
     DB --> BK["Backups<br/>incremental diario + completo semanal<br/>encriptados, offsite"]
 ```
 
+**Arquitectura completa del sistema:**
+
+```mermaid
+graph TB
+    subgraph "Cliente (Navegador)"
+        A[Usuario]
+        B[Frontend React]
+        B --> C[JWT Token]
+    end
+    
+    subgraph "Frontend (GitHub Pages)"
+        B
+        B -->|HTTPS/HTTP| D[Backend FastAPI]
+    end
+    
+    subgraph "Backend (Render)"
+        D
+        D -->|psycopg| E[PostgreSQL]
+        D -->|AES-256| F[Datos Encriptados]
+        D -->|bcrypt| G[Contraseñas Hashed]
+        D -->|JWT| H[Middleware Auth]
+        D -->|RBAC| I[Middleware Roles]
+        D -->|Audit| J[Logs Inmutables]
+    end
+    
+    subgraph "Base de Datos (Render)"
+        E
+        E -->|Tablas| K[Usuarios]
+        E -->|Tablas| L[Pacientes]
+        E -->|Tablas| M[Audit Logs]
+        E -->|Tablas| N[Diagnósticos CIE-10]
+    end
+    
+    subgraph "Capas de Seguridad"
+        H
+        I
+        J
+        F
+        G
+    end
+    
+    style D fill:#4CAF50
+    style E fill:#2196F3
+    style B fill:#FF9800
+    style H fill:#f44336
+    style I fill:#9C27B0
+    style J fill:#607D8B
+    style F fill:#FF5722
+    style G fill:#795548
+```
+
 **Flujo de una petición típica (ej. Doctor consulta historial de un paciente):**
 
 ```mermaid
@@ -309,6 +360,13 @@ criptomed/
 | GET | `/pacientes/me` | paciente | Ver propio historial |
 | GET | `/pacientes/doctores` | paciente, admin | Lista doctores disponibles |
 | PATCH | `/pacientes/{id}/transferir-doctor` | paciente (propio), admin | Transferir paciente a otro doctor |
+
+**Detalle de permisos:**
+- **Admin:** Acceso total a todos los endpoints (Gestión completa)
+- **Doctor:** Solo ve y edita pacientes asignados (doctor_id = current_user.id)
+- **Administrativo:** Puede crear y listar pacientes, pero no editar historial
+- **Auditor:** Solo lectura de logs de auditoría (no puede borrar ni modificar)
+- **Paciente:** Solo puede ver su propio historial y transferir a otro doctor
 
 ## Plan de Recuperación ante Desastres
 

@@ -320,26 +320,74 @@ SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 10;
 
 ### 5.1 Arquitectura
 
+```mermaid
+graph TB
+    subgraph "Cliente (Navegador)"
+        A[Usuario]
+        B[Frontend React]
+        B --> C[JWT Token]
+    end
+    
+    subgraph "Frontend (GitHub Pages)"
+        B
+        B -->|HTTPS/HTTP| D[Backend FastAPI]
+    end
+    
+    subgraph "Backend (Render)"
+        D
+        D -->|psycopg| E[PostgreSQL]
+        D -->|AES-256| F[Datos Encriptados]
+        D -->|bcrypt| G[Contraseñas Hashed]
+        D -->|JWT| H[Middleware Auth]
+        D -->|RBAC| I[Middleware Roles]
+        D -->|Audit| J[Logs Inmutables]
+    end
+    
+    subgraph "Base de Datos (Render)"
+        E
+        E -->|Tablas| K[Usuarios]
+        E -->|Tablas| L[Pacientes]
+        E -->|Tablas| M[Audit Logs]
+        E -->|Tablas| N[Diagnósticos CIE-10]
+    end
+    
+    subgraph "Capas de Seguridad"
+        H
+        I
+        J
+        F
+        G
+    end
+    
+    style D fill:#4CAF50
+    style E fill:#2196F3
+    style B fill:#FF9800
+    style H fill:#f44336
+    style I fill:#9C27B0
+    style J fill:#607D8B
+    style F fill:#FF5722
+    style G fill:#795548
 ```
-┌─────────────────┐
-│   Frontend      │
-│   (React)       │
-│   http://localhost:5173
-└────────┬────────┘
-         │ HTTPS/HTTP
-         │ JWT Token
-┌────────▼────────┐
-│   Backend       │
-│   (FastAPI)     │
-│   http://127.0.0.1:8000
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│   PostgreSQL    │
-│   (Docker)      │
-│   :5433         │
-└─────────────────┘
-```
+
+**Componentes:**
+- **Frontend (React):** Desplegado en GitHub Pages, maneja UI y UX
+- **Backend (FastAPI):** Desplegado en Render, API REST con autenticación JWT
+- **Base de Datos (PostgreSQL):** Desplegado en Render, datos persistentes
+- **Middleware de Autenticación:** Verifica JWT tokens en cada request
+- **Middleware de RBAC:** Controla acceso basado en roles (admin, doctor, paciente, etc.)
+- **Middleware de Auditoría:** Registra cada acción en logs inmutables
+- **Encriptación AES-256:** Campos sensibles encriptados en reposo
+- **Hashing bcrypt:** Contraseñas encriptadas con bcrypt
+- **HTTPS:** Datos encriptados en transporte
+
+**Flujo de datos:**
+1. Usuario hace login → Frontend envía credenciales a Backend
+2. Backend verifica credenciales → Genera JWT token
+3. Frontend almacena JWT token → Lo envía en cada request
+4. Backend verifica JWT token → Middleware Auth permite acceso
+5. Backend verifica rol del usuario → Middleware RBAC autoriza endpoint
+6. Backend ejecuta acción → Middleware Audit registra log
+7. Datos encriptados en reposo → Desencriptados solo en memoria para respuesta
 
 ### 5.2 Modelo de Datos
 
@@ -456,20 +504,93 @@ cripto-med/
 ### 6.2 Endpoints de la API
 
 **Autenticación:**
-- `POST /auth/login` - Login de usuario
-- `GET /auth/me` - Obtener usuario actual
+- `POST /auth/login` - Login de usuario (público)
+  - **Permisos:** Público
+  - **Por qué:** Necesario para obtener JWT token
+  - **Parámetros:** username (email), password
+  - **Respuesta:** access_token, token_type
+
+- `GET /auth/me` - Obtener usuario actual (autenticado)
+  - **Permisos:** Cualquier rol autenticado
+  - **Por qué:** Permite al frontend obtener información del usuario actual
+  - **Protección:** JWT token requerido
 
 **Usuarios:**
 - `GET /usuarios` - Listar usuarios (solo admin)
+  - **Permisos:** Admin
+  - **Por qué:** Solo admin puede ver todos los usuarios del sistema
+  - **Protección:** JWT token + RBAC (admin role)
+  - **Respuesta:** Lista de usuarios con roles
+
 - `POST /usuarios` - Crear usuario (solo admin)
+  - **Permisos:** Admin
+  - **Por qué:** Solo admin puede crear nuevas cuentas
+  - **Protección:** JWT token + RBAC (admin role)
+  - **Parámetros:** email, nombre, rol, password
+
 - `PATCH /usuarios/{id}/revocar` - Revocar usuario (solo admin)
+  - **Permisos:** Admin
+  - **Por qué:** Solo admin puede revocar accesos
+  - **Protección:** JWT token + RBAC (admin role)
+  - **Acción:** Marca usuario como inactivo (soft delete)
 
 **Pacientes:**
-- `GET /pacientes` - Listar pacientes (admin/doctor)
-- `GET /pacientes/{id}` - Obtener paciente (admin/doctor)
+- `GET /pacientes` - Listar pacientes (admin/doctor/administrativo)
+  - **Permisos:** Admin, Doctor, Administrativo
+  - **Por qué:** Doctores solo ven sus pacientes asignados, admin ve todos
+  - **Protección:** JWT token + RBAC
+  - **Filtro:** Doctores solo ven pacientes donde doctor_id = current_user.id
+  - **Respuesta:** Lista de pacientes con datos descifrados
+
+- `GET /pacientes/{id}` - Obtener paciente específico (admin/doctor)
+  - **Permisos:** Admin, Doctor (si está asignado al paciente)
+  - **Por qué:** Doctores solo pueden ver pacientes que tienen asignados
+  - **Protección:** JWT token + RBAC + validación de asignación
+  - **Respuesta:** Paciente con datos descifrados
+
+- `POST /pacientes` - Crear paciente (admin/administrativo)
+  - **Permisos:** Admin, Administrativo
+  - **Por qué:** Solo personal autorizado puede registrar nuevos pacientes
+  - **Protección:** JWT token + RBAC
+  - **Encriptación:** Campos sensibles (nombre, diagnóstico, etc.) se encriptan antes de guardar
+
+- `PUT /pacientes/{id}` - Editar paciente (admin/doctor asignado)
+  - **Permisos:** Admin, Doctor (si está asignado al paciente)
+  - **Por qué:** Doctores solo pueden editar pacientes que tienen asignados
+  - **Protección:** JWT token + RBAC + validación de asignación
+
+- `DELETE /pacientes/{id}` - Borrar paciente (solo admin)
+  - **Permisos:** Admin
+  - **Por qué:** Solo admin puede eliminar registros (soft delete)
+  - **Protección:** JWT token + RBAC (admin role)
+  - **Acción:** Marca paciente como eliminado (soft delete)
+
+- `GET /pacientes/me` - Ver propio historial (solo paciente)
+  - **Permisos:** Paciente
+  - **Por qué:** Paciente solo puede ver su propio historial (principio de mínimo privilegio)
+  - **Protección:** JWT token + RBAC (paciente role)
+  - **Respuesta:** Paciente vinculado a la cuenta del usuario
+
+- `GET /pacientes/doctores` - Lista doctores disponibles (paciente/admin)
+  - **Permisos:** Paciente, Admin
+  - **Por qué:** Paciente necesita ver doctores disponibles para transferencia
+  - **Protección:** JWT token + RBAC
+  - **Respuesta:** Lista de doctores activos
+
+- `PATCH /pacientes/{id}/transferir-doctor` - Transferir paciente (paciente propio/admin)
+  - **Permisos:** Paciente (si es su propio historial), Admin
+  - **Por qué:** Paciente puede controlar quién accede a su información (derechos ARCO)
+  - **Protección:** JWT token + RBAC + validación de propiedad
+  - **Acción:** Cambia doctor_id del paciente
+  - **Auditoría:** Registra transferencia con doctor_anterior, doctor_nuevo, timestamp
 
 **Logs de Auditoría:**
 - `GET /audit-logs` - Listar logs (admin/auditor)
+  - **Permisos:** Admin, Auditor
+  - **Por qué:** Auditor necesita ver logs para verificar cumplimiento, admin para monitoreo
+  - **Protección:** JWT token + RBAC
+  - **Solo lectura:** Auditor no puede borrar logs
+  - **Respuesta:** Lista de logs de auditoría con detalles
 
 ### 6.3 Configuración de HTTPS
 
