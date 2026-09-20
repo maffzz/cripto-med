@@ -15,24 +15,52 @@ app = FastAPI( # instancia principal de la aplicacion
     version="0.1.0", # version inicial del api
 )
 
-# Inicialización de base de datos al inicio (solo crear tablas, no cargar datos)
+# Inicialización de base de datos con migración forzada
 @app.on_event("startup")
 def startup_event():
-    print("=== STARTUP EVENT ===")
+    print("=== STARTUP EVENT ===", flush=True)
+    import sys
+    sys.stdout.flush()
+    
     from app.database import engine
     from app.models import Base
     from sqlalchemy import inspect
     
-    # Solo crear tablas si no existen, no cargar datos
+    # Verificar si el campo usuario_id existe en pacientes
     inspector = inspect(engine)
-    existing_tables = inspector.get_table_names()
+    try:
+        pacientes_columns = [col['name'] for col in inspector.get_columns('pacientes')]
+        has_usuario_id = 'usuario_id' in pacientes_columns
+    except:
+        has_usuario_id = False
     
-    if not existing_tables:
-        print("No hay tablas, creando esquema...")
+    if not has_usuario_id:
+        print("=== MIGRACIÓN FORZADA DE BASE DE DATOS ===", flush=True)
+        sys.stdout.flush()
+        
+        print("Eliminando todas las tablas existentes...", flush=True)
+        sys.stdout.flush()
+        Base.metadata.drop_all(bind=engine)
+        print("Tablas eliminadas", flush=True)
+        sys.stdout.flush()
+        
+        print("Creando tablas con el nuevo modelo...", flush=True)
+        sys.stdout.flush()
         Base.metadata.create_all(bind=engine)
-        print("Tablas creadas")
+        print("Tablas creadas con el nuevo modelo", flush=True)
+        sys.stdout.flush()
+        
+        print("Ejecutando inicialización con el nuevo seed...", flush=True)
+        sys.stdout.flush()
+        initialize_database()
+        print("Inicialización completada", flush=True)
+        sys.stdout.flush()
+        
+        print("=== MIGRACIÓN COMPLETADA ===", flush=True)
+        sys.stdout.flush()
     else:
-        print(f"Tablas existentes: {len(existing_tables)}")
+        print("Modelo actualizado. No se requiere migración.", flush=True)
+        sys.stdout.flush()
 
 # --- Configuración de CORS ---
 app.add_middleware(
