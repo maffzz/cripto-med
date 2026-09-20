@@ -47,11 +47,10 @@ def startup_event():
             print("=== CARGA DE DATOS EN SEGUNDO PLANO ===", flush=True)
             sys.stdout.flush()
             
-            from app.database import engine
-            from app.models import Base
+            from app.database import engine, SessionLocal
+            from app.models import Base, Usuario
             
             # Verificar si hay datos
-            from app.database import SessionLocal
             db = SessionLocal()
             user_count = db.query(Usuario).count()
             db.close()
