@@ -197,7 +197,7 @@ sequenceDiagram
 | Política de contraseñas | Mínimo 10 caracteres, mayúsculas/números/símbolos, rotación cada 90 días |
 | Backups | Incremental diario + completo semanal, encriptados, offsite |
 | RTO / RPO | RTO < 4h, RPO < 24h |
-| Análisis de vulnerabilidades (propuesto) | OWASP ZAP (dinámico), Bandit (estático, Python) |
+| Análisis de vulnerabilidades | OWASP ZAP (dinámico), Bandit (estático, Python), Safety (dependencias), npm audit (frontend) |
 | Plan de incidentes | Detección → Contención → Notificación → Remediación → Post-mortem |
 
 ## Stack técnico
@@ -306,6 +306,35 @@ criptomed/
 | POST | `/usuarios` | admin | Crear usuario |
 | PATCH | `/usuarios/{id}/revocar` | admin | Revocar acceso |
 | GET | `/audit-logs` | auditor, admin | Consultar logs (solo lectura) |
+| GET | `/pacientes/me` | paciente | Ver propio historial |
+| GET | `/pacientes/doctores` | paciente, admin | Lista doctores disponibles |
+| PATCH | `/pacientes/{id}/transferir-doctor` | paciente (propio), admin | Transferir paciente a otro doctor |
+
+## Plan de Recuperación ante Desastres
+
+El sistema tiene un plan completo de recuperación ante desastres documentado en `docs/RECOVERY_PLAN.md` que incluye:
+
+**Tipos de desastres considerados:**
+- Fuga de datos (acceso no autorizado, exposición de credenciales)
+- Pérdida de datos (fallo de hardware, corrupción de base de datos)
+- Ataque de ransomware
+
+**Procedimientos de recuperación:**
+- **RTO (Recovery Time Objective):** < 4 horas
+- **RPO (Recovery Point Objective):** < 24 horas
+- Backups incrementales diarios + completos semanales
+- Backups encriptados y almacenados offsite
+- Procedimientos paso a paso para restauración desde backup
+- Plan de comunicación y notificación a ARDA (Autoridad Nacional de Protección de Datos Personales)
+
+**Backup strategy:**
+- Incremental diario: Copia de cambios desde el último backup
+- Completo semanal: Copia completa de toda la base de datos
+- Encriptación: Backups encriptados con AES-256
+- Offsite: Almacenados en ubicación separada del servidor principal
+- Retención: Backups retenidos por 90 días para cumplimiento normativo
+
+**Para más detalles:** Ver el documento completo en `docs/RECOVERY_PLAN.md`
 
 ## Cumplimiento normativo
 
