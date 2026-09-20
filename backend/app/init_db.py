@@ -11,7 +11,7 @@ from sqlalchemy import inspect
 from app.database import engine, Base
 from app.models import Usuario, Paciente, DiagnosticoCIE10, RolEnum
 from sqlalchemy.orm import sessionmaker
-from passlib.context import CryptContext
+import bcrypt
 from app.crypto import encrypt
 
 def check_and_create_tables():
@@ -87,8 +87,6 @@ def check_and_create_users():
         if user_count == 0:
             print("No hay usuarios, creando usuarios iniciales...")
 
-            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
             usuarios_iniciales = [
                 {
                     "email": "admin@criptomed.com",
@@ -144,7 +142,7 @@ def check_and_create_users():
                     email=usuario_data["email"],
                     nombre=usuario_data["nombre"],
                     rol=RolEnum(usuario_data["rol"]),
-                    password_hash=pwd_context.hash(password)
+                    password_hash=bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                 )
                 session.add(usuario)
 
