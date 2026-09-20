@@ -24,43 +24,30 @@ def startup_event():
     
     from app.database import engine
     from app.models import Base
-    from sqlalchemy import inspect
     
-    # Verificar si el campo usuario_id existe en pacientes
-    inspector = inspect(engine)
-    try:
-        pacientes_columns = [col['name'] for col in inspector.get_columns('pacientes')]
-        has_usuario_id = 'usuario_id' in pacientes_columns
-    except:
-        has_usuario_id = False
+    print("=== MIGRACIÓN FORZADA DE BASE DE DATOS ===", flush=True)
+    sys.stdout.flush()
     
-    if not has_usuario_id:
-        print("=== MIGRACIÓN FORZADA DE BASE DE DATOS ===", flush=True)
-        sys.stdout.flush()
-        
-        print("Eliminando todas las tablas existentes...", flush=True)
-        sys.stdout.flush()
-        Base.metadata.drop_all(bind=engine)
-        print("Tablas eliminadas", flush=True)
-        sys.stdout.flush()
-        
-        print("Creando tablas con el nuevo modelo...", flush=True)
-        sys.stdout.flush()
-        Base.metadata.create_all(bind=engine)
-        print("Tablas creadas con el nuevo modelo", flush=True)
-        sys.stdout.flush()
-        
-        print("Ejecutando inicialización con el nuevo seed...", flush=True)
-        sys.stdout.flush()
-        initialize_database()
-        print("Inicialización completada", flush=True)
-        sys.stdout.flush()
-        
-        print("=== MIGRACIÓN COMPLETADA ===", flush=True)
-        sys.stdout.flush()
-    else:
-        print("Modelo actualizado. No se requiere migración.", flush=True)
-        sys.stdout.flush()
+    print("Eliminando todas las tablas existentes...", flush=True)
+    sys.stdout.flush()
+    Base.metadata.drop_all(bind=engine)
+    print("Tablas eliminadas", flush=True)
+    sys.stdout.flush()
+    
+    print("Creando tablas con el nuevo modelo...", flush=True)
+    sys.stdout.flush()
+    Base.metadata.create_all(bind=engine)
+    print("Tablas creadas con el nuevo modelo", flush=True)
+    sys.stdout.flush()
+    
+    print("Ejecutando inicialización con el nuevo seed...", flush=True)
+    sys.stdout.flush()
+    initialize_database()
+    print("Inicialización completada", flush=True)
+    sys.stdout.flush()
+    
+    print("=== MIGRACIÓN COMPLETADA ===", flush=True)
+    sys.stdout.flush()
 
 # --- Configuración de CORS ---
 app.add_middleware(
