@@ -71,26 +71,36 @@ def migrate_database():
     """Endpoint para forzar migración de base de datos (solo para uso manual)"""
     from app.database import engine
     from app.models import Base
+    import sys
     
     try:
-        print("=== MIGRACIÓN MANUAL DE BASE DE DATOS ===")
+        print("=== MIGRACIÓN MANUAL DE BASE DE DATOS ===", flush=True)
+        sys.stdout.flush()
         
-        print("Eliminando todas las tablas existentes...")
+        print("Eliminando todas las tablas existentes...", flush=True)
+        sys.stdout.flush()
         Base.metadata.drop_all(bind=engine)
-        print("Tablas eliminadas")
+        print("Tablas eliminadas", flush=True)
+        sys.stdout.flush()
         
-        print("Creando tablas con el nuevo modelo...")
+        print("Creando tablas con el nuevo modelo...", flush=True)
+        sys.stdout.flush()
         Base.metadata.create_all(bind=engine)
-        print("Tablas creadas con el nuevo modelo")
+        print("Tablas creadas con el nuevo modelo", flush=True)
+        sys.stdout.flush()
         
-        print("Ejecutando inicialización con el nuevo seed...")
+        print("Ejecutando inicialización con el nuevo seed...", flush=True)
+        sys.stdout.flush()
         initialize_database()
-        print("Inicialización completada")
+        print("Inicialización completada", flush=True)
+        sys.stdout.flush()
         
-        print("=== MIGRACIÓN COMPLETADA ===")
+        print("=== MIGRACIÓN COMPLETADA ===", flush=True)
+        sys.stdout.flush()
         return {"status": "success", "message": "Migración completada"}
     except Exception as e:
-        print(f"Error durante migración: {e}")
+        print(f"Error durante migración: {e}", flush=True)
+        sys.stdout.flush()
         return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
