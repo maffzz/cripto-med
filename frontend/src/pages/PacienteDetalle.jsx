@@ -13,12 +13,21 @@ const PacienteDetalle = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editedData, setEditedData] = useState({
+    diagnostico: '',
+    medicacion: ''
+  });
 
   useEffect(() => {
     const fetchPaciente = async () => {
       try {
         const response = await axios.get(`${API_CONFIG.URL}/pacientes/${id}`);
         setPaciente(response.data);
+        setEditedData({
+          diagnostico: response.data.diagnostico_descifrado || '',
+          medicacion: response.data.medicacion_descifrado || ''
+        });
       } catch (err) {
         console.error('error al obtener paciente:', err);
         setError('error al cargar paciente');
@@ -28,6 +37,45 @@ const PacienteDetalle = () => {
     };
     fetchPaciente();
   }, [id]);
+
+  const handleEdit = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${API_CONFIG.URL}/pacientes/${id}`,
+        {
+          diagnostico_descifrado: editedData.diagnostico,
+          medicacion_descifrado: editedData.medicacion
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      alert('Paciente actualizado correctamente');
+      setEditMode(false);
+      // Recargar datos
+      const response = await axios.get(`${API_CONFIG.URL}/pacientes/${id}`);
+      setPaciente(response.data);
+    } catch (err) {
+      console.error('error al editar paciente:', err);
+      alert('Error al editar paciente');
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_CONFIG.URL}/pacientes/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Paciente borrado correctamente');
+      setShowDeleteModal(false);
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('error al borrar paciente:', err);
+      alert('Error al borrar paciente');
+    }
+  };
 
   if (loading) {
     return (
@@ -215,7 +263,7 @@ const PacienteDetalle = () => {
               <span>Crear Paciente</span>
             </button>
             <button
-              onClick={() => alert('Función de editar - Pendiente de implementar')}
+              onClick={() => setEditMode(true)}
               className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
             >
               <Edit className="w-5 h-5" />
@@ -230,9 +278,9 @@ const PacienteDetalle = () => {
             </button>
           </>
         )}
-        {user?.rol === 'doctor' && (
+        {(user?.rol === 'doctor' || user?.rol === 'administrativo') && (
           <button
-            onClick={() => alert('Función de editar - Pendiente de implementar')}
+            onClick={() => setEditMode(true)}
             className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
           >
             <Edit className="w-5 h-5" />
@@ -249,6 +297,47 @@ const PacienteDetalle = () => {
           </button>
         )}
       </div>
+
+      {/* Edit Mode */}
+      {editMode && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Editar Paciente</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Diagnóstico</label>
+              <input
+                type="text"
+                value={editedData.diagnostico}
+                onChange={(e) => setEditedData({...editedData, diagnostico: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Medicación</label>
+              <input
+                type="text"
+                value={editedData.medicacion}
+                onChange={(e) => setEditedData({...editedData, medicacion: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleEdit}
+                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+              >
+                <span>Guardar Cambios</span>
+              </button>
+              <button
+                onClick={() => setEditMode(false)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                <span>Cancelar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Modal */}
       {showDeleteModal && (
@@ -269,11 +358,7 @@ const PacienteDetalle = () => {
                 Cancelar
               </button>
               <button
-                onClick={() => {
-                  // Aquí iría la lógica de borrado
-                  alert('Función de borrado - Pendiente de implementar');
-                  setShowDeleteModal(false);
-                }}
+                onClick={handleDelete}
                 className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
               >
                 Borrar
