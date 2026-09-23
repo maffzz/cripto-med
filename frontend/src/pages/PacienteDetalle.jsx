@@ -273,7 +273,11 @@ const PacienteDetalle = () => {
               <span>Crear Paciente</span>
             </button>
             <button
-              onClick={() => setEditMode(true)}
+              onClick={() => {
+                console.log('Botón editar clickeado (admin)');
+                console.log('Rol usuario:', user?.rol);
+                setEditMode(true);
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
             >
               <Edit className="w-5 h-5" />
@@ -291,7 +295,11 @@ const PacienteDetalle = () => {
         {(user?.rol === 'doctor' || user?.rol === 'administrativo') && (
           <>
             <button
-              onClick={() => setEditMode(true)}
+              onClick={() => {
+                console.log('Botón editar clickeado (admin)');
+                console.log('Rol usuario:', user?.rol);
+                setEditMode(true);
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
             >
               <Edit className="w-5 h-5" />
@@ -329,7 +337,10 @@ const PacienteDetalle = () => {
               <input
                 type="text"
                 value={editedData.diagnostico}
-                onChange={(e) => setEditedData({...editedData, diagnostico: e.target.value})}
+                onChange={(e) => {
+                  console.log('Diagnóstico cambiado:', e.target.value);
+                  setEditedData({...editedData, diagnostico: e.target.value});
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
               />
             </div>
@@ -338,19 +349,28 @@ const PacienteDetalle = () => {
               <input
                 type="text"
                 value={editedData.medicacion}
-                onChange={(e) => setEditedData({...editedData, medicacion: e.target.value})}
+                onChange={(e) => {
+                  console.log('Medicación cambiada:', e.target.value);
+                  setEditedData({...editedData, medicacion: e.target.value});
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
               />
             </div>
             <div className="flex gap-3">
               <button
-                onClick={handleEdit}
+                onClick={() => {
+                  console.log('Botón guardar clickeado');
+                  handleEdit();
+                }}
                 className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
               >
                 <span>Guardar Cambios</span>
               </button>
               <button
-                onClick={() => setEditMode(false)}
+                onClick={() => {
+                  console.log('Botón cancelar clickeado');
+                  setEditMode(false);
+                }}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
               >
                 <span>Cancelar</span>
