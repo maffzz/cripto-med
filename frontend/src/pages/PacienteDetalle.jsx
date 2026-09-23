@@ -9,6 +9,8 @@ const PacienteDetalle = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  console.log('PacienteDetalle montado. Rol usuario:', user?.rol);
+  console.log('ID paciente:', id);
   const [paciente, setPaciente] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
