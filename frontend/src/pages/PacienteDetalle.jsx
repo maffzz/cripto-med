@@ -279,13 +279,24 @@ const PacienteDetalle = () => {
           </>
         )}
         {(user?.rol === 'doctor' || user?.rol === 'administrativo') && (
-          <button
-            onClick={() => setEditMode(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
-          >
-            <Edit className="w-5 h-5" />
-            <span>Editar Historial</span>
-          </button>
+          <>
+            <button
+              onClick={() => setEditMode(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+            >
+              <Edit className="w-5 h-5" />
+              <span>Editar Historial</span>
+            </button>
+            {user?.rol === 'administrativo' && (
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Crear Paciente</span>
+              </button>
+            )}
+          </>
         )}
         {user?.rol === 'administrativo' && (
           <button
