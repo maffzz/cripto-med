@@ -39,9 +39,17 @@ const PacienteDetalle = () => {
   }, [id]);
 
   const handleEdit = async () => {
+    console.log('Iniciando edición:', editedData);
     try {
       const token = localStorage.getItem('token');
-      await axios.put(
+      console.log('Token:', token ? 'existe' : 'no existe');
+      console.log('URL:', `${API_CONFIG.URL}/pacientes/${id}`);
+      console.log('Payload:', {
+        diagnostico_descifrado: editedData.diagnostico,
+        medicacion_descifrado: editedData.medicacion
+      });
+
+      const response = await axios.put(
         `${API_CONFIG.URL}/pacientes/${id}`,
         {
           diagnostico_descifrado: editedData.diagnostico,
@@ -51,14 +59,16 @@ const PacienteDetalle = () => {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
+      console.log('Respuesta:', response.data);
       alert('Paciente actualizado correctamente');
       setEditMode(false);
       // Recargar datos
-      const response = await axios.get(`${API_CONFIG.URL}/pacientes/${id}`);
-      setPaciente(response.data);
+      const pacienteResponse = await axios.get(`${API_CONFIG.URL}/pacientes/${id}`);
+      setPaciente(pacienteResponse.data);
     } catch (err) {
       console.error('error al editar paciente:', err);
-      alert('Error al editar paciente');
+      console.error('Error response:', err.response?.data);
+      alert(`Error al editar paciente: ${err.response?.data?.detail || err.message}`);
     }
   };
 
