@@ -38,9 +38,10 @@ El archivo `.env.example` contiene las variables de configuración. Cópialo a `
 cp .env.example .env
 ```
 
-**Importante:** El archivo `.env` ya está configurado con:
-- `DATABASE_URL=postgresql://criptomed:${POSTGRES_PASSWORD}@127.0.0.1:5433/criptomed`
-- `JWT_SECRET`, `ENCRYPTION_KEY`, etc.
+**Importante:** Configura el archivo `.env` con tus valores reales (ver `.env.example`):
+- `DATABASE_URL=postgresql://usuario:password@127.0.0.1:5433/criptomed`
+- `JWT_SECRET` (generado con scripts/generate_secrets.py)
+- `ENCRYPTION_KEY` (generado con scripts/generate_secrets.py)
 
 No modificar el puerto 5433 (se usa para evitar conflictos con PostgreSQL local).
 
@@ -50,11 +51,7 @@ No modificar el puerto 5433 (se usa para evitar conflictos con PostgreSQL local)
 docker compose up -d
 ```
 
-Esto inicia un contenedor PostgreSQL con:
-- Usuario: `criptomed`
-- Contraseña: `${POSTGRES_PASSWORD}`
-- Base de datos: `criptomed`
-- Puerto: `5433` (mapeado al host)
+Esto inicia un contenedor PostgreSQL con las credenciales configuradas en `docker-compose.yml` (ver archivo para más detalles).
 
 ### Verificar que el contenedor esté corriendo
 
@@ -132,12 +129,7 @@ ejemplo de paciente:
 
 ## Usuarios Iniciales
 
-| Email                  | Contraseña | Rol           |
-|------------------------|------------|---------------|
-| admin@criptomed.com    | admin123   | admin         |
-| doctor@criptomed.com   | doctor123  | doctor        |
-| admin@clinica.com      | admin123   | administrativo|
-| auditor@criptomed.com  | auditor123 | auditor       |
+Los usuarios iniciales se crean en `backend/scripts/seed_db.py`. Ver el archivo para las credenciales de demo (o personalizarlas según necesidad).
 
 ## Campos Cifrados
 
@@ -185,10 +177,7 @@ pip install -r backend/requirements.txt
 
 **Causa:** Ya tienes PostgreSQL local (Homebrew) corriendo en el puerto 5432.
 
-**Solución:** El proyecto usa el puerto 5433 en la configuración. Asegúrate de que el `.env` tenga:
-```
-DATABASE_URL=postgresql://criptomed:${POSTGRES_PASSWORD}@127.0.0.1:5433/criptomed
-```
+**Solución:** El proyecto usa el puerto 5433 en la configuración. Asegúrate de que el `.env` tenga el puerto correcto (ver `.env.example`).
 
 ### Error: "cannot import name 'Base' from 'app.database'"
 

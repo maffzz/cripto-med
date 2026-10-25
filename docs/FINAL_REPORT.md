@@ -991,7 +991,7 @@ El proyecto demuestra que es posible implementar medidas de seguridad efectivas 
 
 **[Captura 1: Login de CriptoMed]**
 - Screenshot de página de login
-- Usuario: admin@criptomed.com / admin123
+- Usuario: Ver credenciales en .env.example o docs/SETUP_GUIDE.md
 
 **[Captura 2: Dashboard de CriptoMed]**
 - Screenshot de dashboard con lista de pacientes

@@ -5,8 +5,13 @@ __pycache__/
 *.db
 .env
 .env.*
-certs/*.pem
-backend/certs/*.pem
+!.env.example
+certs/
+*.pem
+*.key
+backups/
+*.gpg
+reports/
 .DS_Store
 node_modules/
 dist/
