@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
@@ -6,7 +6,7 @@ from datetime import datetime as dt
 
 from app.database import get_db
 from app.models import Paciente, RolEnum, Usuario, AccionEnum, AuditLog
-from app.schemas import PacienteCreate, PacienteResponse
+from app.schemas import PacienteCreate, PacienteResponse, PacienteResponseBasico
 from app.rbac import require_role, get_current_user
 from app.crypto import encrypt, decrypt  # Importamos las funciones de cifrado
 
@@ -18,31 +18,43 @@ autorizado_lista = Depends(require_role([RolEnum.admin, RolEnum.doctor, RolEnum.
 # Acceso permitido para editar (admin, doctor, administrativo)
 autorizado_edicion = Depends(require_role([RolEnum.admin, RolEnum.doctor, RolEnum.administrativo]))
 
-def formatear_paciente_respuesta(p: Paciente) -> dict:
-    """Helper para mapear el modelo de BD (cifrado) al esquema de respuesta (descifrado)"""
-    return {
-        "id": p.id,
+def formatear_paciente_respuesta(p: Paciente, usuario: Usuario) -> dict:
+    """Helper para mapear el modelo de BD (cifrado) al esquema de respuesta (descifrado)
+    Filtra campos según el rol del usuario."""
+    
+    # Datos básicos comunes a todos los roles
+    datos = {
+        "id": str(p.id),
         "edad": p.edad,
         "genero": p.genero,
         "tipo_sangre": p.tipo_sangre,
         "codigo_cie10": p.codigo_cie10,
-        "fecha_admision": p.fecha_admision,
+        "fecha_admision": p.fecha_admision.isoformat() if p.fecha_admision else None,
         "hospital": p.hospital,
         "proveedor_seguro": p.proveedor_seguro,
         "numero_habitacion": p.numero_habitacion,
         "tipo_admision": p.tipo_admision,
-        "fecha_alta": p.fecha_alta,
-        "doctor_id": p.doctor_id,
-        # descifra al responder
+        "fecha_alta": p.fecha_alta.isoformat() if p.fecha_alta else None,
+        "doctor_id": str(p.doctor_id) if p.doctor_id else None,
         "nombre_descifrado": decrypt(p.nombre) if p.nombre else "",
-        "diagnostico_descifrado": decrypt(p.diagnostico) if p.diagnostico else None,
         "monto_facturado_descifrado": decrypt(p.monto_facturado) if p.monto_facturado else None,
+    }
+    
+    # Administrativo: NO ve diagnóstico, medicación, resultado_test
+    if usuario.rol == RolEnum.administrativo:
+        return datos
+    
+    # Admin y Doctor: ven todos los campos
+    datos.update({
+        "diagnostico_descifrado": decrypt(p.diagnostico) if p.diagnostico else None,
         "medicacion_descifrado": decrypt(p.medicacion) if p.medicacion else None,
         "resultado_test_descifrado": decrypt(p.resultado_test) if p.resultado_test else None,
-    }
+    })
+    
+    return datos
 
 
-@router.get("", response_model=List[PacienteResponse], dependencies=[autorizado_lista])
+@router.get("", dependencies=[autorizado_lista])
 def listar_pacientes(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -63,7 +75,7 @@ def listar_pacientes(
         .all()
     )
     print(f"Pacientes encontrados: {len(pacientes_db)}")
-    return [formatear_paciente_respuesta(p) for p in pacientes_db]
+    return [formatear_paciente_respuesta(p, current_user) for p in pacientes_db]
 
 
 @router.get("/me", response_model=PacienteResponse)
@@ -103,19 +115,36 @@ def listar_doctores(db: Session = Depends(get_db)):
     ]
 
 
-@router.get("/{paciente_id}", response_model=PacienteResponse, dependencies=[autorizado_lista])
-def obtener_paciente(paciente_id: UUID, db: Session = Depends(get_db)):
-    """Busca un paciente específico y devuelve sus datos descifrados."""
+@router.get("/{paciente_id}", dependencies=[autorizado_lista])
+def obtener_paciente(paciente_id: UUID, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Busca un paciente específico y devuelve sus datos descifrados según el rol."""
     paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
     if not paciente:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Paciente no encontrado."
         )
-    return formatear_paciente_respuesta(paciente)
+    
+    # Verificar permisos por rol
+    if current_user.rol == RolEnum.doctor:
+        # Doctor solo puede ver pacientes asignados
+        if paciente.doctor_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No autorizado para ver este paciente"
+            )
+    
+    # Auditor no debería llegar aquí por el decorador autorizado_lista, pero por seguridad:
+    if current_user.rol == RolEnum.auditor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado para ver pacientes"
+        )
+    
+    return formatear_paciente_respuesta(paciente, current_user)
 
-@router.post("", response_model=PacienteResponse, status_code=status.HTTP_201_CREATED, dependencies=[autorizado_lista])
-def crear_paciente(paciente_in: PacienteCreate, db: Session = Depends(get_db)):
+@router.post("", status_code=status.HTTP_201_CREATED, dependencies=[autorizado_lista])
+def crear_paciente(paciente_in: PacienteCreate, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
     """Registra un nuevo paciente cifrando sus datos sensibles antes de guardarlos en PostgreSQL."""
     nuevo_paciente = Paciente(
         edad=paciente_in.edad,
@@ -141,7 +170,7 @@ def crear_paciente(paciente_in: PacienteCreate, db: Session = Depends(get_db)):
     db.refresh(nuevo_paciente)
 
     # Devolvemos el registro recién creado, mapeándolo para descifrarlo en la respuesta
-    return formatear_paciente_respuesta(nuevo_paciente)
+    return formatear_paciente_respuesta(nuevo_paciente, current_user)
 
 
 @router.put("/{paciente_id}", response_model=PacienteResponse, dependencies=[autorizado_edicion])

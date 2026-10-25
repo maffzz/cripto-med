@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import os
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from fastapi import FastAPI # framework web para la api
@@ -7,7 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware # middleware para CORS
 from app.audit import AuditMiddleware # middleware para auditoria
 from app.config import JWT_SECRET # secreto jwt para saber si ya se configuro
 from app.routers import auth, usuarios, pacientes, audit_logs # importa los routers de autenticacion, usuarios y pacientes
-from app.init_db import initialize_database # script de inicializacion automatica
+
+# Solo importar init_db si no estamos en modo prueba
+if os.getenv("TESTING") != "true":
+    from app.init_db import initialize_database # script de inicializacion automatica
 
 app = FastAPI( # instancia principal de la aplicacion
     title="CriptoMed", # nombre que aparece en /docs
@@ -16,109 +20,110 @@ app = FastAPI( # instancia principal de la aplicacion
 )
 
 # Inicialización de base de datos con migración forzada en segundo plano
-@app.on_event("startup")
-def startup_event():
-    print("=== STARTUP EVENT ===", flush=True)
-    import sys
-    sys.stdout.flush()
-    
-    from app.database import engine
-    from app.models import Base
-    from sqlalchemy import inspect
-    
-    # Primero crear tablas vacías para que el servicio responda
-    inspector = inspect(engine)
-    existing_tables = inspector.get_table_names()
-    
-    if not existing_tables:
-        print("Creando tablas básicas...", flush=True)
+if os.getenv("TESTING") != "true":
+    @app.on_event("startup")
+    def startup_event():
+        print("=== STARTUP EVENT ===", flush=True)
+        import sys
         sys.stdout.flush()
-        Base.metadata.create_all(bind=engine)
-        print("Tablas básicas creadas", flush=True)
-        sys.stdout.flush()
-    else:
-        print(f"Tablas existentes: {len(existing_tables)}", flush=True)
-        sys.stdout.flush()
-    
-    # Cargar datos en segundo plano después de que el servicio esté live
-    import threading
-    def load_data_background():
-        try:
-            import time
-            time.sleep(2)  # Esperar a que el servicio esté completamente live
-            
-            print("=== CARGA DE DATOS EN SEGUNDO PLANO ===", flush=True)
+        
+        from app.database import engine
+        from app.models import Base
+        from sqlalchemy import inspect
+        
+        # Primero crear tablas vacías para que el servicio responda
+        inspector = inspect(engine)
+        existing_tables = inspector.get_table_names()
+        
+        if not existing_tables:
+            print("Creando tablas básicas...", flush=True)
             sys.stdout.flush()
-            
-            from app.database import engine, SessionLocal
-            from app.models import Base, Usuario, Paciente
-            from sqlalchemy import inspect
-            
-            # Verificar si el modelo es correcto (campo usuario_id en pacientes)
-            inspector = inspect(engine)
+            Base.metadata.create_all(bind=engine)
+            print("Tablas básicas creadas", flush=True)
+            sys.stdout.flush()
+        else:
+            print(f"Tablas existentes: {len(existing_tables)}", flush=True)
+            sys.stdout.flush()
+        
+        # Cargar datos en segundo plano después de que el servicio esté live
+        import threading
+        def load_data_background():
             try:
-                pacientes_columns = [col['name'] for col in inspector.get_columns('pacientes')]
-                has_usuario_id = 'usuario_id' in pacientes_columns
-            except:
-                has_usuario_id = False
-            
-            # Verificar si hay pacientes con usuario_id asignado
-            needs_migration = False
-            if has_usuario_id:
-                db = SessionLocal()
+                import time
+                time.sleep(2)  # Esperar a que el servicio esté completamente live
+                
+                print("=== CARGA DE DATOS EN SEGUNDO PLANO ===", flush=True)
+                sys.stdout.flush()
+                
+                from app.database import engine, SessionLocal
+                from app.models import Base, Usuario, Paciente
+                from sqlalchemy import inspect
+                
+                # Verificar si el modelo es correcto (campo usuario_id en pacientes)
+                inspector = inspect(engine)
                 try:
-                    # Verificar si hay algún paciente con usuario_id asignado
-                    paciente_con_usuario = db.query(Paciente).filter(Paciente.usuario_id != None).first()
-                    if not paciente_con_usuario:
-                        print("Campo usuario_id existe pero ningún paciente tiene usuario asignado. Se requiere migración.", flush=True)
-                        sys.stdout.flush()
-                        needs_migration = True
-                    else:
-                        # Verificar si el paciente demo está vinculado
-                        paciente_demo_usuario = db.query(Usuario).filter(
-                            Usuario.email == "paciente.demo@criptomed.pe"
-                        ).first()
-                        if paciente_demo_usuario:
-                            paciente_demo_vinculado = db.query(Paciente).filter(
-                                Paciente.usuario_id == paciente_demo_usuario.id
+                    pacientes_columns = [col['name'] for col in inspector.get_columns('pacientes')]
+                    has_usuario_id = 'usuario_id' in pacientes_columns
+                except:
+                    has_usuario_id = False
+                
+                # Verificar si hay pacientes con usuario_id asignado
+                needs_migration = False
+                if has_usuario_id:
+                    db = SessionLocal()
+                    try:
+                        # Verificar si hay algún paciente con usuario_id asignado
+                        paciente_con_usuario = db.query(Paciente).filter(Paciente.usuario_id != None).first()
+                        if not paciente_con_usuario:
+                            print("Campo usuario_id existe pero ningún paciente tiene usuario asignado. Se requiere migración.", flush=True)
+                            sys.stdout.flush()
+                            needs_migration = True
+                        else:
+                            # Verificar si el paciente demo está vinculado
+                            paciente_demo_usuario = db.query(Usuario).filter(
+                                Usuario.email == "paciente.demo@criptomed.pe"
                             ).first()
-                            if not paciente_demo_vinculado:
-                                print("Modelo correcto pero paciente demo no vinculado. Se requiere recarga de datos.", flush=True)
-                                sys.stdout.flush()
-                                needs_migration = True
-                finally:
-                    db.close()
-            else:
-                print("Campo usuario_id no existe. Se requiere migración.", flush=True)
-                sys.stdout.flush()
-                needs_migration = True
-            
-            if needs_migration:
-                print("Eliminando tablas y recreando con datos...", flush=True)
-                sys.stdout.flush()
+                            if paciente_demo_usuario:
+                                paciente_demo_vinculado = db.query(Paciente).filter(
+                                    Paciente.usuario_id == paciente_demo_usuario.id
+                                ).first()
+                                if not paciente_demo_vinculado:
+                                    print("Modelo correcto pero paciente demo no vinculado. Se requiere recarga de datos.", flush=True)
+                                    sys.stdout.flush()
+                                    needs_migration = True
+                    finally:
+                        db.close()
+                else:
+                    print("Campo usuario_id no existe. Se requiere migración.", flush=True)
+                    sys.stdout.flush()
+                    needs_migration = True
                 
-                Base.metadata.drop_all(bind=engine)
-                print("Tablas eliminadas", flush=True)
+                if needs_migration:
+                    print("Eliminando tablas y recreando con datos...", flush=True)
+                    sys.stdout.flush()
+                    
+                    Base.metadata.drop_all(bind=engine)
+                    print("Tablas eliminadas", flush=True)
+                    sys.stdout.flush()
+                    
+                    Base.metadata.create_all(bind=engine)
+                    print("Tablas recreadas", flush=True)
+                    sys.stdout.flush()
+                    
+                    initialize_database()
+                    print("=== CARGA DE DATOS COMPLETADA ===", flush=True)
+                    sys.stdout.flush()
+                else:
+                    print("Modelo y datos correctos. No se requiere migración.", flush=True)
+                    sys.stdout.flush()
+            except Exception as e:
+                print(f"Error en carga de datos en segundo plano: {e}", flush=True)
                 sys.stdout.flush()
-                
-                Base.metadata.create_all(bind=engine)
-                print("Tablas recreadas", flush=True)
-                sys.stdout.flush()
-                
-                initialize_database()
-                print("=== CARGA DE DATOS COMPLETADA ===", flush=True)
-                sys.stdout.flush()
-            else:
-                print("Modelo y datos correctos. No se requiere migración.", flush=True)
-                sys.stdout.flush()
-        except Exception as e:
-            print(f"Error en carga de datos en segundo plano: {e}", flush=True)
-            sys.stdout.flush()
-    
-    # Iniciar carga de datos en hilo separado
-    thread = threading.Thread(target=load_data_background)
-    thread.daemon = True
-    thread.start()
+        
+        # Iniciar carga de datos en hilo separado
+        thread = threading.Thread(target=load_data_background)
+        thread.daemon = True
+        thread.start()
 
 # --- Configuración de CORS ---
 app.add_middleware(

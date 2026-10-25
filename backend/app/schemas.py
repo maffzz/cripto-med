@@ -52,6 +52,7 @@ class PacienteCreate(PacienteBase):
     medicacion_descifrado: Optional[str] = None
     resultado_test_descifrado: Optional[str] = None
 
+# Schema completo (admin, doctor)
 class PacienteResponse(PacienteBase):
     id: UUID
     doctor_id: Optional[UUID] = None
@@ -61,6 +62,17 @@ class PacienteResponse(PacienteBase):
     monto_facturado_descifrado: Optional[str] = None
     medicacion_descifrado: Optional[str] = None
     resultado_test_descifrado: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+# Schema restringido para administrativo (sin diagnóstico, medicación, resultado_test)
+class PacienteResponseBasico(PacienteBase):
+    id: UUID
+    doctor_id: Optional[UUID] = None
+    # Solo campos básicos y facturación
+    nombre_descifrado: str
+    monto_facturado_descifrado: Optional[str] = None
+    # NO incluye: diagnostico_descifrado, medicacion_descifrado, resultado_test_descifrado
 
     model_config = ConfigDict(from_attributes=True)
 
