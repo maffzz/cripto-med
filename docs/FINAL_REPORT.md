@@ -32,6 +32,7 @@ Las pequeñas clínicas en Perú enfrentan un problema crítico: los historiales
 - **Dificultad de auditoría:** No hay registro de quién accedió a qué datos y cuándo
 - **Ineficiencia operativa:** La búsqueda de historiales toma ~10 minutos en promedio
 - **Riesgo de cumplimiento:** Potencial incumplimiento de la Ley Peruana N° 29733 sobre protección de datos personales
+- **Riesgo de ataques:** Según el reporte "The State of Ransomware in Healthcare 2024" de Sophos, el 67% de las organizaciones de salud sufrió ataques de ransomware en 2024
 
 ### 1.2 Caso de Uso de Negocio
 
@@ -81,10 +82,10 @@ Las pequeñas clínicas en Perú enfrentan un problema crítico: los historiales
 **Artículo 5 - Medidas de seguridad:**
 - Medidas técnicas: Encriptación, hashing, control de acceso ✅
 - Medidas organizativas: Políticas, procedimientos, capacitación ✅
-- Medidas legales: Notificación a ARDA en caso de incidente ✅
+- Medidas legales: Notificación a ANPD (Autoridad Nacional de Protección de Datos Personales) en caso de incidente ✅
 
 **Artículo 10 - Notificación de incidentes:**
-- Procedimiento de notificación a ARDA documentado ✅
+- Procedimiento de notificación a ANPD (Autoridad Nacional de Protección de Datos Personales) documentado ✅
 - Plazo de 72 horas establecido ✅
 
 **Artículo 14 - Derechos de los titulares:**
@@ -182,7 +183,7 @@ $2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5xY8GwT1sHsGC
 |-----|-----------|----------------------|-------------|------|
 | admin | Todos | Sí | Sí | Sí |
 | doctor | Asignados | Sí | No | No |
-| administrativo | Todos (datos básicos) | No | Sí | No |
+| administrativo | Todos (datos básicos) | No (no ve diagnósticos médicos detallados) | Sí | No |
 | auditor | Ninguno | No | No | Sí |
 
 #### 3.1.5 Logs de Auditoría
@@ -205,11 +206,25 @@ SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 10;
 ### 3.2 Estrategias de Uso Seguro
 
 #### 3.2.1 Políticas de Contraseñas
-**Documentación:** `PASSWORD_POLICY.md`
-- Longitud mínima: 12 caracteres
-- Complejidad: Mayúsculas, minúsculas, números, caracteres especiales
-- Rotación: Cada 90 días
-- No reutilización: No se pueden reusar contraseñas por 1 año
+**Documentación:** `PASSWORD_POLICY.md` (Alineado a NIST SP 800-63B)
+
+**Longitud mínima:**
+- Para autenticación de factor único: mínimo 15 caracteres
+- Para autenticación multifactor: mínimo 8 caracteres
+- Longitud máxima recomendada: al menos 64 caracteres
+
+**Composición:**
+- NO se imponen requisitos de composición (mayúsculas, minúsculas, números, caracteres especiales)
+- Se permite y se recomienda el uso de frases (passphrases)
+- El sistema bloquea contraseñas comunes, esperadas o comprometidas
+
+**Rotación:**
+- NO se requiere rotación periódica de contraseñas (NIST SP 800-63B recomienda no forzar rotación a menos que haya evidencia de compromiso)
+- Se permite al usuario mantener su contraseña mientras no esté comprometida
+
+**No reutilización:**
+- Se bloquean contraseñas que hayan sido comprometidas en filtraciones conocidas
+- Se verifica contra listas de contraseñas filtradas públicamente
 
 #### 3.2.2 Procedimientos de Gestión de Usuarios
 **Documentación:** `USER_MANAGEMENT.md`
@@ -234,7 +249,7 @@ SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 10;
 - Tiempos objetivo de respuesta (MTTR: <72 horas)
 
 **Procedimientos de notificación:** `NOTIFICATION_PROCEDURES.md`
-- Notificación a ARDA dentro de 72 horas (Ley N° 29733)
+- Notificar a la ANPD dentro de las 48 horas de tomar conocimiento del incidente e informar a los titulares afectados (Reglamento de la Ley 29733, D.S. 016-2024-JUS). Si el incidente es en un entorno digital, reportar también al Centro Nacional de Seguridad Digital.
 - Notificación a pacientes sin demora indebida
 - Plantillas de notificación predefinidas
 
