@@ -110,6 +110,21 @@ Las pequeñas clínicas en Perú enfrentan un problema crítico: los historiales
 - Documentación de recuperación ante desastres ✅
 - Plan de rotación de llaves ✅
 
+### 2.4 Matriz de Riesgos
+
+|| Riesgo | Probabilidad | Impacto | Mitigación |
+||--------|-------------|---------|------------|
+|| Fuga de datos por compromiso de credenciales | Media | Alto | MFA, rotación de contraseñas, monitoreo de accesos |
+|| Fuga de datos por vulnerabilidad de API | Baja | Alto | SAST, pentesting, OWASP ZAP |
+|| Fuga de datos por ransomware | Media | Crítico | Backups, sin pago de rescate, plan de recuperación |
+|| Fuga de datos por error humano | Alta | Medio | Capacitación, procesos, validación de formularios |
+|| Fuga de datos por tercero | Baja | Alto | Due diligence de proveedores, contratos de confidencialidad |
+|| Fuga de datos en tránsito (MITM) | Baja | Alto | HTTPS, certificados SSL/TLS 1.3 |
+|| Fuga de datos en reposo por compromiso de servidor | Baja | Crítico | Encriptación AES-256, controles de acceso físico |
+|| Pérdida de datos por fallo de hardware | Media | Alto | Backups, redundancia, plan de recuperación |
+|| Acceso no autorizado por phishing | Alta | Medio | Capacitación, simulacros de phishing, MFA |
+|| Exposición accidental de datos en logs | Baja | Medio | Minimización de datos en logs, masking de información sensible |
+
 ---
 
 ## 3. Requerimientos de Seguridad
