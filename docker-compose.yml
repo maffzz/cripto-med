@@ -16,5 +16,23 @@ services:
       timeout: 5s # tiempo maximo de espera
       retries: 5 # numero de reintentos
 
+  backend: # servicio backend
+    build: ./backend # construye usando el Dockerfile en backend/
+    container_name: criptomed_backend # nombre del contenedor
+    environment: # variables de entorno
+      DATABASE_URL: postgresql://criptomed:${POSTGRES_PASSWORD}@postgres:5432/criptomed
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    ports: # mapeo de puertos
+      - "8000:8000" # puerto 8000 del host al 8000 del contenedor
+    depends_on: # depende de postgres
+      postgres:
+        condition: service_healthy
+    volumes: # volumenes para desarrollo
+      - ./backend:/app # monta el código local para desarrollo
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload # comando para ejecutar con recarga
+
 volumes: # definicion de volumenes
   postgres_data: # volumen para persistir datos de postgresql
