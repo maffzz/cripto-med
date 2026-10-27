@@ -79,7 +79,15 @@ class AuditMiddleware(BaseHTTPMiddleware):
                                 }
                                 accion = method_map.get(request.method, request.method.lower())
 
-                                ip_origen = request.client.host if request.client else "127.0.0.1"
+                                # Obtener IP real del cliente usando X-Forwarded-For (del edge Nginx)
+                                # Si no está presente, usar request.client.host
+                                x_forwarded_for = request.headers.get("X-Forwarded-For")
+                                if x_forwarded_for:
+                                    # X-Forwarded-For puede tener múltiples IPs separadas por coma
+                                    # La primera es la IP del cliente original
+                                    ip_origen = x_forwarded_for.split(",")[0].strip()
+                                else:
+                                    ip_origen = request.client.host if request.client else "127.0.0.1"
 
                                 log_action(
                                     db=db,

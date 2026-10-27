@@ -102,13 +102,14 @@ graph TB
         B --> C[JWT Token]
     end
     
-    subgraph "Frontend (GitHub Pages)"
-        B
-        B -->|HTTPS/HTTP| D[Backend FastAPI]
+    subgraph "Edge (Nginx)"
+        N[Nginx TLS]
+        B -->|HTTPS 8443| N
+        N -->|Proxy /api| D
     end
     
-    subgraph "Backend (Render)"
-        D
+    subgraph "Backend (FastAPI)"
+        D[Backend FastAPI]
         D -->|psycopg| E[PostgreSQL]
         D -->|AES-256| F[Datos Encriptados]
         D -->|bcrypt| G[Contraseñas Hashed]
@@ -117,7 +118,7 @@ graph TB
         D -->|Audit| J[Logs Inmutables]
     end
     
-    subgraph "Base de Datos (Render)"
+    subgraph "Base de Datos (PostgreSQL)"
         E
         E -->|Tablas| K[Usuarios]
         E -->|Tablas| L[Pacientes]
@@ -136,6 +137,7 @@ graph TB
     style D fill:#4CAF50
     style E fill:#2196F3
     style B fill:#FF9800
+    style N fill:#9C27B0
     style H fill:#f44336
     style I fill:#9C27B0
     style J fill:#607D8B
@@ -250,6 +252,16 @@ sequenceDiagram
 | RTO / RPO | RTO < 4h, RPO < 24h |
 | Análisis de vulnerabilidades | OWASP ZAP (dinámico), Bandit (estático, Python), Safety (dependencias), npm audit (frontend) |
 | Plan de incidentes | Detección → Contención → Notificación → Remediación → Post-mortem |
+
+## Cómo ejecutar el proyecto
+
+**Requisitos:** Docker y Docker Compose.
+1. Generar .env: `python3 scripts/generate_secrets.py --generate-env`
+2. Generar certificados: `./scripts/gen_cert.sh`
+3. Levantar: `./scripts/dev.sh up`
+4. Sembrar datos: `./scripts/dev.sh seed`
+5. Abrir: https://localhost:8443 (aceptar certificado autofirmado)
+6. Usuarios demo: admin@criptomed.com (DEMO_PASSWORD_ADMIN), doctor@criptomed.com (DEMO_PASSWORD_DOCTOR), admin@clinica.com (DEMO_PASSWORD_ADMINISTRATIVO), auditor@criptomed.com (DEMO_PASSWORD_AUDITOR).
 
 ## Stack técnico
 
@@ -447,57 +459,6 @@ Toda la documentación detallada del proyecto se encuentra en la carpeta `/docs/
 - Cifrado a nivel de columna con rotación periódica de llaves (key rotation)
 - Web Application Firewall (WAF) delante del backend
 - Anonimización/seudonimización de datos en entornos de prueba
-
----
-
-## Despliegue en la nube
-
-### Frontend (GitHub Pages)
-
-El frontend está desplegado en GitHub Pages: https://maffzz.github.io/cripto-med/
-
-**Despliegue automático:**
-- Cada push a la rama `main` activa el despliegue
-- El build se realiza automáticamente con `npm run build`
-- Los archivos estáticos se publican en GitHub Pages
-
-### Backend (Render)
-
-El backend está configurado para desplegarse en Render usando `render.yaml`.
-
-**Pasos para desplegar:**
-
-1. **Crear cuenta en Render:** https://render.com/
-
-2. **Conectar repositorio:**
-   - Click en "New +"
-   - "Web Service"
-   - Conectar tu repositorio de GitHub
-   - Render detectará automáticamente el archivo `render.yaml`
-
-3. **Configurar variables de entorno:**
-   - Render configurará automáticamente `DATABASE_URL` (PostgreSQL)
-   - `JWT_SECRET` (generado automáticamente)
-   - `ENCRYPTION_KEY` (generado automáticamente)
-   - `USE_HTTPS` = "true"
-
-4. **Ejecutar scripts de setup:**
-   - Render ejecutará automáticamente los scripts de setup
-   - Las tablas se crearán automáticamente
-   - Los datos se cargarán automáticamente
-
-5. **Actualizar frontend:**
-   - La URL del backend será: `https://criptomed-backend.onrender.com`
-   - Esta URL ya está configurada en `frontend/.env.production`
-
-**Documentación de Render:**
-- Archivo de configuración: `render.yaml`
-- Scripts de setup: `backend/scripts/setup_db_render.py`, `backend/scripts/seed_db_render.py`
-- Base de datos: PostgreSQL gratuito en Render
-
-**Nota:**
-- El plan gratuito de Render tiene limitaciones (spindown después de 15 min de inactividad)
-- Para producción se recomienda usar un plan de pago
 
 ---
 

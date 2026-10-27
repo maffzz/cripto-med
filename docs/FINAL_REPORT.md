@@ -13,6 +13,8 @@ CriptoMed es un sistema web de gestión de historiales médicos diseñado para p
 
 **Stack técnico:** Backend (FastAPI + Python), Base de datos (PostgreSQL en Docker), Frontend (React + Vite), Certificados SSL autofirmados, Encriptación (Fernet/AES-256), Hashing (bcrypt), Autenticación (JWT).
 
+**Evolución del despliegue:** En la Entrega 1 el sistema se desplegó en Render y GitHub Pages; para la Entrega 2 se migró a un despliegue local con Docker Compose para controlar el aislamiento de red, la terminación TLS y la gestión de llaves.
+
 **Resultados:**
 - Reducción de tiempo de acceso a historiales de ~10 min a <30 seg
 - 100% de campos sensibles encriptados en reposo

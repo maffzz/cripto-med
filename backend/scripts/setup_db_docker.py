@@ -1,29 +1,94 @@
 """
 script simplificado para configurar base de datos postgresql en docker
-este script solo crea las tablas usando sqlalchemy
-docker compose se encarga de crear la base de datos y usuario automaticamente
+este script usa DATABASE_URL (rol dueño) para crear tablas
 """
 
-import sys # para manejar errores y salir del script
-from pathlib import Path # para rutas de archivos
+import sys
+import os
+from pathlib import Path
 
-# crear tablas usando sqlalchemy
+print("Script iniciado...")
+print(f"Python version: {sys.version}")
+print(f"Working dir: {os.getcwd()}")
+
 def crear_tablas():
-    """crea las tablas usando los modelos de sqlalchemy"""
+    """crea las tablas usando sql directo"""
     print("=== script de configuracion de tablas para criptomed (docker) ===")
-    print("este script creara las tablas en postgresql usando docker")
+    print("este script creara las tablas en postgresql usando sql directo")
     print("")
     
     try:
-        # agrega el directorio backend al path para poder importar los modelos
-        sys.path.insert(0, str(Path(__file__).parent.parent))
+        print("Importando sqlalchemy...")
+        from sqlalchemy import create_engine, text
+        print("SQLAlchemy importado OK")
         
-        # importa los modelos y la configuracion de la base de datos
-        from app.database import Base, engine
-        from app.models import Usuario, Paciente, DiagnosticoCIE10, AuditLog
+        # Usa DATABASE_URL
+        db_url = os.getenv('DATABASE_URL')
+        if not db_url:
+            print("Error: DATABASE_URL no está definido en .env")
+            return False
         
-        # crea todas las tablas definidas en los modelos
-        Base.metadata.create_all(bind=engine)
+        print(f"DATABASE_URL: {db_url[:20]}...")
+        
+        # Agrega +psycopg si no está presente
+        if db_url.startswith("postgresql://"):
+            db_url = db_url.replace("postgresql://", "postgresql+psycopg://")
+        
+        print(f"DB URL con driver: {db_url[:20]}...")
+        
+        # Crea engine
+        print("Creando engine...")
+        engine = create_engine(db_url)
+        print("Engine creado OK")
+        
+        # Define SQL para crear tablas
+        tables_sql = """
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            rol VARCHAR(20) NOT NULL,
+            email VARCHAR(100) UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE TABLE IF NOT EXISTS pacientes (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(100) NOT NULL,
+            apellido VARCHAR(100) NOT NULL,
+            fecha_nacimiento DATE NOT NULL,
+            dni VARCHAR(20) UNIQUE NOT NULL,
+            doctor_id INTEGER REFERENCES usuarios(id),
+            diagnostico TEXT,
+            medicacion TEXT,
+            resultado_test TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE TABLE IF NOT EXISTS diagnosticos_cie10 (
+            codigo VARCHAR(10) PRIMARY KEY,
+            descripcion TEXT NOT NULL
+        );
+        
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER REFERENCES usuarios(id),
+            accion VARCHAR(100) NOT NULL,
+            tabla_afectada VARCHAR(50),
+            registro_id INTEGER,
+            ip_origen VARCHAR(50),
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        
+        # Ejecuta SQL
+        with engine.connect() as conn:
+            for statement in tables_sql.split(';'):
+                statement = statement.strip()
+                if statement:
+                    conn.execute(text(statement))
+            conn.commit()
+        
         print("tablas creadas exitosamente:")
         print("  - usuarios")
         print("  - pacientes")
@@ -32,24 +97,21 @@ def crear_tablas():
         
     except Exception as e:
         print(f"error al crear tablas: {e}")
-        print("asegurate de que:")
-        print("  1. docker compose este corriendo (docker compose up -d)")
-        print("  2. el archivo .env tenga la conexion correcta a postgresql")
-        print("  3. las dependencias esten instaladas (pip install -r requirements.txt)")
+        import traceback
+        traceback.print_exc()
         return False
     
     return True
 
-# funcion principal
 def main():
     """funcion principal que ejecuta el proceso de configuracion"""
     
     # crear tablas
     if not crear_tablas():
-        sys.exit(1) # sale si falla la creacion de tablas
+        sys.exit(1)
     
     print("\n=== configuracion completada exitosamente ===")
     print("ahora puedes ejecutar el script seed_db.py para cargar los datos de ejemplo")
 
 if __name__ == "__main__":
-    main() # ejecuta la funcion principal si el script se ejecuta directamente
+    main()

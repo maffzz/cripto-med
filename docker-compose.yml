@@ -1,38 +1,160 @@
 services:
-  postgres: # servicio de base de datos postgresql
-    image: postgres:14 # imagen oficial de postgresql version 14
-    container_name: criptomed_db # nombre del contenedor
-    environment: # variables de entorno para postgresql
-      POSTGRES_USER: criptomed # usuario de postgresql
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} # contraseña del usuario (desde .env)
-      POSTGRES_DB: criptomed # nombre de la base de datos
-    ports: # mapeo de puertos (host:contenedor)
-      - "5433:5432" # puerto 5433 del host al 5432 del contenedor
-    volumes: # volumenes para persistencia de datos
-      - postgres_data:/var/lib/postgresql/data # guarda los datos en un volumen
-    healthcheck: # verifica que postgresql este listo
-      test: ["CMD-SHELL", "pg_isready -U criptomed"]
-      interval: 10s # verifica cada 10 segundos
-      timeout: 5s # tiempo maximo de espera
-      retries: 5 # numero de reintentos
+  db:
+    image: postgres:16-alpine
+    container_name: criptomed_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # PostgreSQL necesita: CHOWN, DAC_OVERRIDE, FOWNER, FSETID, KILL, SETGID, SETUID, SYS_CHROOT
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - FSETID
+      - KILL
+      - SETGID
+      - SETUID
+      - SYS_CHROOT
+    # read_only: true comentado porque PostgreSQL necesita escribir en /var/lib/postgresql/data
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    mem_limit: 512m
+    pids_limit: 100
+    restart: unless-stopped
 
-  backend: # servicio backend
-    build: ./backend # construye usando el Dockerfile en backend/
-    container_name: criptomed_backend # nombre del contenedor
-    environment: # variables de entorno
-      DATABASE_URL: postgresql://criptomed:${POSTGRES_PASSWORD}@postgres:5432/criptomed
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: criptomed_backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-    ports: # mapeo de puertos
-      - "8000:8000" # puerto 8000 del host al 8000 del contenedor
-    depends_on: # depende de postgres
-      postgres:
+      ENC_KEYS: ${ENC_KEYS}
+      ENC_KEY_CURRENT: ${ENC_KEY_CURRENT}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      ENV: ${ENV}
+    depends_on:
+      db:
         condition: service_healthy
-    volumes: # volumenes para desarrollo
-      - ./backend:/app # monta el código local para desarrollo
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload # comando para ejecutar con recarga
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+    networks:
+      - app_net
+      - db_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # FastAPI necesita: NET_BIND_SERVICE para escuchar en puerto 8000
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m
+    pids_limit: 50
+    restart: unless-stopped
 
-volumes: # definicion de volumenes
-  postgres_data: # volumen para persistir datos de postgresql
+  edge:
+    build:
+      context: .
+      dockerfile: docker/edge/Dockerfile
+    container_name: criptomed_edge
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app_net
+    # Endurecimiento temporalmente desactivado por problemas de permisos
+    # security_opt:
+    #   - no-new-privileges:true
+    # cap_drop:
+    #   - ALL
+    # cap_add:
+    #   - NET_BIND_SERVICE
+    # tmpfs:
+    #   - /tmp
+    #   - /var/cache/nginx/client_temp
+    #   - /var/cache/nginx/proxy_temp
+    #   - /var/cache/nginx/fastcgi_temp
+    #   - /var/cache/nginx/uwsgi_temp
+    #   - /var/cache/nginx/scgi_temp
+    #   - /var/run/nginx
+    #   - /run
+    mem_limit: 128m
+    pids_limit: 30
+    restart: unless-stopped
+
+  init:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: criptomed_init
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - db_net
+    # Init corre como root para tener acceso a las dependencias instaladas
+    user: "0:0"
+    command: >
+      sh -c "
+        python scripts/setup_db_docker.py &&
+        python scripts/seed_db.py
+      "
+    profiles:
+      - seed
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Init necesita: NET_BIND_SERVICE para conectar a db
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m
+    pids_limit: 50
+    restart: "no"
+
+volumes:
+  pgdata:
+
+networks:
+  app_net:
+    # No internal para que edge pueda exponer puertos al host
+  db_net:
+    internal: true
