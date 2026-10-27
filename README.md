@@ -3,255 +3,9 @@
 
 Plataforma web que permite a clínicas pequeñas y consultorios independientes centralizar los historiales médicos de sus pacientes de forma segura, con acceso controlado por roles, datos encriptados en reposo y tránsito, y trazabilidad completa de cada acceso o modificación.
 
----
-
-## Tabla de contenidos
-- [Problema y motivación](#problema-y-motivación)
-- [Caso de negocio](#caso-de-negocio)
-- [KPIs / OKRs](#kpis--okrs)
-- [Datasets](#datasets)
-- [Arquitectura](#arquitectura)
-- [Modelo de datos](#modelo-de-datos)
-- [Roles y permisos](#roles-y-permisos)
-- [Seguridad](#seguridad)
-- [Stack técnico](#stack-técnico)
-- [Estructura del repositorio](#estructura-del-repositorio)
-- [Endpoints principales](#endpoints-principales)
-- [Cumplimiento normativo](#cumplimiento-normativo)
-- [Documentación](#documentación)
-- [Recomendaciones futuras](#recomendaciones-futuras)
+**Despliegue:** Docker Compose local con PostgreSQL, FastAPI, React y Nginx con TLS 1.3.
 
 ---
-
-## Problema y motivación
-
-Las clínicas pequeñas y consultorios independientes en Perú suelen manejar historiales médicos en papel o en hojas de Excel sin protección, lo que genera:
-
-- Riesgo de pérdida de información crítica (sin backups)
-- Acceso no controlado (cualquier personal puede ver cualquier historial)
-- Incumplimiento de la **Ley N° 29733** (Ley de Protección de Datos Personales del Perú)
-- Dificultad para auditar quién accedió a qué información y cuándo
-
-## Caso de negocio
-
-CriptoMed centraliza los historiales médicos en un sistema con **control de acceso basado en roles (RBAC)**, **encriptación de campos sensibles**, y **logs de auditoría inmutables**, permitiendo a la clínica operar de forma más rápida, segura y conforme a la normativa.
-
-## KPIs / OKRs
-
-| Objetivo | Key Result |
-|---|---|
-| Reducir el riesgo de exposición de datos sensibles | 100% de campos sensibles encriptados en reposo |
-| | 0 incidentes de acceso no autorizado en 6 meses |
-| Mejorar la eficiencia operativa | Reducir tiempo de acceso a un historial de ~10 min a < 30 seg |
-| | 100% de accesos registrados en logs de auditoría |
-| Cumplimiento normativo | 100% de requisitos de la Ley N° 29733 cubiertos |
-| | Detectar accesos anómalos en < 24 horas (vs. promedio industria de 279 días — IBM Cost of a Data Breach Report 2025) |
-
-## Datasets
-
-| Dataset | Fuente | Uso |
-|---|---|---|
-| `healthcare_dataset.csv` | [Kaggle – prasad22/healthcare-dataset](https://www.kaggle.com/datasets/prasad22/healthcare-dataset) | Dataset principal: pacientes, admisiones, diagnósticos, facturación |
-| `cie10.csv` | [Hugging Face – rubend18/CIE10](https://huggingface.co/datasets/rubend18/CIE10) | Normalización de diagnósticos a código CIE-10 estándar |
-| `healthcare_dataset_mapped.csv` | Generado localmente | Dataset principal + FK `Codigo_CIE10` |
-
----
-
-## Arquitectura
-
-```mermaid
-flowchart TB
-    subgraph CLIENTE["CLIENTE (Front)"]
-        FE["React / HTML+JS<br/>Login, dashboard por rol,<br/>formularios CRUD"]
-    end
-
-    FE -->|"HTTPS (TLS 1.3)<br/>certificado autofirmado"| BE
-
-    subgraph BE["BACKEND (FastAPI)"]
-        direction TB
-        AUTH["Auth<br/>JWT + bcrypt/Argon2"]
-        RBAC["RBAC Middleware<br/>valida rol por endpoint"]
-        AUDIT["Audit Logging Middleware<br/>registra cada acción"]
-        CRYPTO["Capa de Encriptación AES-256<br/>cifra/descifra campos sensibles"]
-
-        AUTH --> CRYPTO
-        RBAC --> CRYPTO
-        AUDIT --> CRYPTO
-    end
-
-    CRYPTO --> DB
-
-    subgraph DB["BASE DE DATOS (PostgreSQL / SQLite)"]
-        direction LR
-        T1[("usuarios<br/>(roles)")]
-        T2[("pacientes<br/>(campos cifrados)")]
-        T3[("diagnosticos_cie10")]
-        T4[("audit_logs<br/>(inmutable)")]
-    end
-
-    DB --> BK["Backups<br/>incremental diario + completo semanal<br/>encriptados, offsite"]
-```
-
-**Arquitectura completa del sistema:**
-
-```mermaid
-graph TB
-    subgraph "Cliente (Navegador)"
-        A[Usuario]
-        B[Frontend React]
-        B --> C[JWT Token]
-    end
-    
-    subgraph "Edge (Nginx)"
-        N[Nginx TLS]
-        B -->|HTTPS 8443| N
-        N -->|Proxy /api| D
-    end
-    
-    subgraph "Backend (FastAPI)"
-        D[Backend FastAPI]
-        D -->|psycopg| E[PostgreSQL]
-        D -->|AES-256| F[Datos Encriptados]
-        D -->|bcrypt| G[Contraseñas Hashed]
-        D -->|JWT| H[Middleware Auth]
-        D -->|RBAC| I[Middleware Roles]
-        D -->|Audit| J[Logs Inmutables]
-    end
-    
-    subgraph "Base de Datos (PostgreSQL)"
-        E
-        E -->|Tablas| K[Usuarios]
-        E -->|Tablas| L[Pacientes]
-        E -->|Tablas| M[Audit Logs]
-        E -->|Tablas| N[Diagnósticos CIE-10]
-    end
-    
-    subgraph "Capas de Seguridad"
-        H
-        I
-        J
-        F
-        G
-    end
-    
-    style D fill:#4CAF50
-    style E fill:#2196F3
-    style B fill:#FF9800
-    style N fill:#9C27B0
-    style H fill:#f44336
-    style I fill:#9C27B0
-    style J fill:#607D8B
-    style F fill:#FF5722
-    style G fill:#795548
-```
-
-**Flujo de una petición típica (ej. Doctor consulta historial de un paciente):**
-
-```mermaid
-sequenceDiagram
-    participant U as Doctor (Front)
-    participant A as Auth
-    participant R as RBAC Middleware
-    participant C as Capa AES-256
-    participant D as Base de Datos
-    participant L as Audit Log
-
-    U->>A: POST /auth/login (credenciales)
-    A->>A: Verifica password_hash (bcrypt/Argon2)
-    A-->>U: JWT
-
-    U->>R: GET /pacientes/{id} + JWT (HTTPS/TLS 1.3)
-    R->>R: Valida rol "Doctor" tiene permiso
-    R->>D: Consulta paciente
-    D-->>C: Campos cifrados
-    C->>C: Desencripta (AES-256)
-    C-->>U: Respuesta con datos en claro
-    R->>L: Registra (usuario, acción=lectura, recurso, timestamp)
-```
-
-
-**Flujo de una petición típica (ej. Doctor consulta historial de un paciente):**
-1. Front envía credenciales → Backend valida con bcrypt/Argon2 → emite JWT.
-2. Front envía JWT en cada request sobre HTTPS.
-3. Middleware RBAC valida que el rol "Doctor" tenga permiso sobre el endpoint solicitado.
-4. Backend consulta la DB, desencripta los campos sensibles (AES-256) solo para la respuesta.
-5. Middleware de auditoría registra: usuario, acción, timestamp, recurso, en `audit_logs` (append-only).
-6. Front recibe y muestra la data.
-
-## Modelo de datos
-
-**`usuarios`**
-| Campo | Tipo | Notas |
-|---|---|---|
-| id | UUID / PK | |
-| nombre | string | |
-| email | string, único | |
-| password_hash | string | bcrypt/Argon2 |
-| rol | enum | `admin`, `doctor`, `administrativo`, `auditor` |
-| activo | boolean | para revocación de accesos |
-| creado_en | timestamp | |
-
-**`pacientes`**
-| Campo | Tipo | Notas |
-|---|---|---|
-| id | UUID / PK | |
-| nombre | string (cifrado AES-256) | |
-| edad | int | |
-| genero | string | |
-| tipo_sangre | string | |
-| diagnostico | string (cifrado AES-256) | |
-| codigo_cie10 | FK → `diagnosticos_cie10` | |
-| fecha_admision | date | |
-| doctor_id | FK → `usuarios` | |
-| hospital | string | |
-| proveedor_seguro | string | |
-| monto_facturado | decimal (cifrado AES-256) | |
-| numero_habitacion | string | |
-| tipo_admision | string | |
-| fecha_alta | date | |
-| medicacion | string (cifrado AES-256) | |
-| resultado_test | string (cifrado AES-256) | |
-
-**`diagnosticos_cie10`**
-| Campo | Tipo |
-|---|---|
-| codigo | string / PK |
-| descripcion | string |
-
-**`audit_logs`** *(inmutable, solo-lectura salvo el sistema)*
-| Campo | Tipo | Notas |
-|---|---|---|
-| id | UUID / PK | |
-| usuario_id | FK → `usuarios` | |
-| accion | enum | `login`, `lectura`, `edicion`, `borrado` |
-| recurso | string | ej. `paciente:UUID` |
-| timestamp | datetime | |
-| ip_origen | string | |
-
-## Roles y permisos
-
-| Rol | Login | Ver pacientes | Ver diagnóstico/facturación | Editar pacientes | Gestionar usuarios | Ver audit logs |
-|---|---|---|---|---|---|---|
-| **Administrador** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Doctor** | ✅ | ✅ (asignados) | ✅ (asignados) | ✅ (asignados) | ❌ | ❌ |
-| **Administrativo** | ✅ | ✅ (datos básicos) | ✅ (facturación) | ✅ (admisión/facturación) | ❌ | ❌ |
-| **Auditor** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ (solo lectura) |
-
-## Seguridad
-
-| Medida | Implementación |
-|---|---|
-| Encriptación en reposo | AES-256 sobre campos sensibles (diagnóstico, facturación, medicación, resultados de test) |
-| Encriptación en tránsito | HTTPS con TLS 1.3, certificado digital autofirmado (OpenSSL) |
-| Hashing de contraseñas | bcrypt o Argon2 |
-| Autenticación | JWT con expiración + expiración de sesión por inactividad |
-| Autorización | RBAC (4 roles), principio de mínimo privilegio |
-| Auditoría | Logs inmutables de login/lectura/edición/borrado |
-| Política de contraseñas | Mínimo 10 caracteres, mayúsculas/números/símbolos, rotación cada 90 días |
-| Backups | Incremental diario + completo semanal, encriptados, offsite |
-| RTO / RPO | RTO < 4h, RPO < 24h |
-| Análisis de vulnerabilidades | OWASP ZAP (dinámico), Bandit (estático, Python), Safety (dependencias), npm audit (frontend) |
-| Plan de incidentes | Detección → Contención → Notificación → Remediación → Post-mortem |
 
 ## Cómo ejecutar el proyecto
 
@@ -260,321 +14,241 @@ sequenceDiagram
 2. Generar certificados: `./scripts/gen_cert.sh`
 3. Levantar: `./scripts/dev.sh up`
 4. Sembrar datos: `./scripts/dev.sh seed`
-5. Abrir: https://localhost:8443 (aceptar certificado autofirmado)
-6. Usuarios demo: admin@criptomed.com (DEMO_PASSWORD_ADMIN), doctor@criptomed.com (DEMO_PASSWORD_DOCTOR), admin@clinica.com (DEMO_PASSWORD_ADMINISTRATIVO), auditor@criptomed.com (DEMO_PASSWORD_AUDITOR).
+5. Abrir: https://localhost:8443 (aceptar certificado autofirmado o importar `certs/cert.pem` como confiable)
+6. Usuarios demo: admin@criptomed.local (DEMO_PASSWORD_ADMIN), doctor1@criptomed.local (DEMO_PASSWORD_DOCTOR), admin1@criptomed.local (DEMO_PASSWORD_ADMINISTRATIVO), auditor1@criptomed.local (DEMO_PASSWORD_AUDITOR), paciente1@criptomed.local (DEMO_PASSWORD_PACIENTE). Contraseña para todos: admin123.
+
+**Para reiniciar desde cero:** `./scripts/dev.sh reset`
+
+---
+
+## Arquitectura Docker
+
+```mermaid
+graph TB
+    subgraph "Host"
+        A[Browser]
+    end
+    
+    subgraph "app_net"
+        B[Edge Nginx]
+        C[Backend FastAPI]
+    end
+    
+    subgraph "db_net"
+        D[PostgreSQL]
+    end
+    
+    A -->|HTTPS 8443| B
+    B -->|Proxy /api| C
+    C --> D
+```
+
+**Servicios Docker:**
+- **db**: PostgreSQL 16 Alpine - Base de datos con healthcheck
+- **backend**: FastAPI con Python 3.12.7 - API REST con healthcheck, usuario no root, filesystem de solo lectura
+- **edge**: Nginx 1.27 Alpine - Terminación TLS 1.3, frontend React compilado, proxy a backend
+- **init**: Servicio de inicialización (seed) - Crea tablas y carga datos demo
+
+**Redes:**
+- `app_net`: Frontend y backend (no internal para exponer puerto 8443 al host)
+- `db_net`: Base de datos (internal, solo accesible desde backend)
+
+**Puertos:**
+- Solo edge publica puerto `8443:8443` al host
+- Puertos 5432 (Postgres) y 8000 (backend) son internos, no expuestos
+
+---
+
+## Modelo de datos
+
+**`usuarios`**
+|| Campo | Tipo | Notas |
+|---|---|---|
+| id | UUID / PK | |
+| nombre | string | |
+| email | string, único | |
+| password_hash | string | bcrypt |
+| rol | enum | `admin`, `doctor`, `administrativo`, `auditor`, `paciente` |
+| activo | boolean | para revocación de accesos |
+| creado_en | timestamp | |
+
+**`pacientes`**
+|| Campo | Tipo | Notas |
+|---|---|---|
+| id | UUID / PK | |
+| nombre | string (cifrado AES-256) | |
+| apellido | string (cifrado AES-256) | |
+| fecha_nacimiento | date | |
+| dni | string, único | |
+| doctor_id | UUID, FK → usuarios | |
+| usuario_id | UUID, FK → usuarios | |
+| diagnostico | string (cifrado AES-256) | |
+| medicacion | string (cifrado AES-256) | |
+| resultado_test | string (cifrado AES-256) | |
+
+**`diagnosticos_cie10`**
+|| Campo | Tipo |
+|---|---|
+| codigo | string / PK |
+| descripcion | string |
+
+**`audit_logs`** *(inmutable, solo-lectura salvo el sistema)*
+|| Campo | Tipo | Notas |
+|---|---|---|
+| id | UUID / PK | |
+| usuario_id | UUID, FK → usuarios | |
+| accion | enum | `login`, `lectura`, `edicion`, `borrado`, `transferencia` |
+| recurso | string | ej. `paciente:UUID` |
+| timestamp | datetime | |
+| ip_origen | string | |
+| detalle | string | detalle adicional |
+
+---
+
+## Roles y permisos
+
+|| Rol | Login | Ver pacientes | Ver diagnóstico | Editar pacientes | Gestionar usuarios | Ver audit logs |
+|---|---|---|---|---|---|---|
+| **Administrador** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Doctor** | ✅ | ✅ (asignados) | ✅ (asignados) | ✅ (asignados) | ❌ | ❌ |
+| **Administrativo** | ✅ | ✅ (datos básicos) | ❌ | ✅ (admisión/facturación) | ❌ | ❌ |
+| **Auditor** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ (solo lectura) |
+| **Paciente** | ✅ | ✅ (propio) | ✅ (propio) | ❌ | ❌ | ❌ |
+
+---
+
+## Seguridad
+
+|| Medida | Implementación |
+|---|---|
+| Encriptación en reposo | AES-256 (Fernet) sobre campos sensibles (diagnóstico, medicación, resultado_test) |
+| Encriptación en tránsito | HTTPS con TLS 1.3, certificado autofirmado (OpenSSL) |
+| Hashing de contraseñas | bcrypt |
+| Autenticación | JWT con expiración |
+| Autorización | RBAC (5 roles), principio de mínimo privilegio |
+| Auditoría | Logs inmutables de login/lectura/edición/borrado/transferencia |
+| Usuario no root | Contenedores backend e init corren como UID 10001 |
+| Capabilities mínimas | `cap_drop: ALL` + `cap_add` de solo las necesarias |
+| No secretos en imágenes | Variables de entorno vía docker-compose.yml, no COPY de .env |
+| Healthchecks | pg_isready (db), /health endpoint (backend) |
+| Límites de recursos | mem_limit y pids_limit configurados |
+
+Para más detalles de hardening, ver `docs/HARDENING_DOCKER.md`.
+
+---
+
+## Endpoints principales
+
+|| Método | Ruta | Rol requerido | Descripción |
+|---|---|---|---|
+| POST | `/api/auth/login` | público | Login, retorna JWT |
+| GET | `/api/pacientes` | doctor, admin, administrativo | Lista pacientes (campos según rol) |
+| GET | `/api/pacientes/{id}` | doctor (asignado), admin | Detalle completo |
+| POST | `/api/pacientes` | admin, administrativo | Crear paciente |
+| PUT | `/api/pacientes/{id}` | doctor (asignado), admin | Editar historial |
+| DELETE | `/api/pacientes/{id}` | admin | Borrado |
+| GET | `/api/usuarios` | admin | Gestión de usuarios |
+| POST | `/api/usuarios` | admin | Crear usuario |
+| PATCH | `/api/usuarios/{id}/revocar` | admin | Revocar acceso |
+| GET | `/api/audit-logs` | auditor, admin | Consultar logs (solo lectura) |
+| GET | `/api/pacientes/me` | paciente | Ver propio historial |
+| GET | `/api/pacientes/doctores` | paciente, admin | Lista doctores disponibles |
+| PATCH | `/api/pacientes/{id}/transferir-doctor` | paciente (propio), admin | Transferir paciente a otro doctor |
+
+---
+
+## Documentación
+
+- `docs/DOCKER.md` - Documentación de Docker (diagramas, puertos, volúmenes, debugging)
+- `docs/HARDENING_DOCKER.md` - Resumen de hardening Docker con tabla de controles
+- `docs/FINAL_REPORT.md` - Informe final completo (cumplimiento normativo, matriz de riesgos, lecciones aprendidas)
+- `docs/EXPOSITION_GUIDE.md` - Guía de exposición para demostración
+
+---
 
 ## Stack técnico
 
-| Capa | Tecnología |
+|| Capa | Tecnología |
 |---|---|
-| Backend | Python + FastAPI |
-| Base de datos | PostgreSQL (o SQLite para desarrollo local) |
+| Backend | Python 3.12.7 + FastAPI |
+| Base de datos | PostgreSQL 16 Alpine |
 | ORM | SQLAlchemy |
-| Auth | JWT (`python-jose`) + `passlib[bcrypt]` |
+| Auth | JWT (`python-jose`) + `bcrypt` |
 | Encriptación | `cryptography` (Fernet / AES-256) |
-| Front | React (o HTML/JS simple) |
-| Certificados | OpenSSL (autofirmado) |
+| Frontend | React + Vite |
+| Edge | Nginx 1.27 Alpine |
+| Orquestación | Docker Compose |
 | Control de versiones | Git / GitHub |
-| Informe | GitHub Pages o Notion |
 
-## Desarrollo local (paso 1)
+---
 
-### Usar Docker para PostgreSQL
+## Scripts de operación
 
-```bash
-# iniciar postgresql en docker
-docker compose up -d
+- `./scripts/dev.sh up` - Genera certificados si faltan, valida .env, build y levanta servicios
+- `./scripts/dev.sh seed` - Ejecuta el perfil seed (carga datos demo)
+- `./scripts/dev.sh down` - Detiene servicios
+- `./scripts/dev.sh reset` - down -v + up + seed
+- `./scripts/dev.sh logs` - Muestra logs de servicios
+- `./scripts/dev.sh ps` - Muestra estado de servicios
+- `./scripts/dev.sh test` - Ejecuta pytest en backend
+- `./scripts/dev.sh shell-db` - Abre psql en contenedor db
+- `./scripts/verificar_despliegue.sh` - Verifica 8 puntos críticos del despliegue
 
-# crear tablas en la base de datos
-python3 backend/scripts/setup_db_docker.py
-
-# iniciar backend
-source .venv/bin/activate
-cd backend && uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-Comprobar: `curl http://127.0.0.1:8000/health` → `{"status":"ok",...}`  
-Docs interactivas: http://127.0.0.1:8000/docs
+---
 
 ## Estructura del repositorio
 
 ```
-criptomed/
+cripto-med/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py
-│   │   ├── models.py          # usuarios, pacientes, diagnosticos_cie10, audit_logs
+│   │   ├── models.py
 │   │   ├── schemas.py
-│   │   ├── auth.py            # login, JWT, hashing
-│   │   ├── rbac.py            # middleware de roles
-│   │   ├── crypto.py          # cifrado/descifrado AES-256
-│   │   ├── audit.py           # middleware de logging
+│   │   ├── auth.py
+│   │   ├── rbac.py
+│   │   ├── crypto.py
+│   │   ├── audit.py
 │   │   └── routers/
-│   │       ├── pacientes.py
-│   │       ├── usuarios.py
-│   │       └── audit_logs.py
-│   ├── certs/                 # cert.pem, key.pem (autofirmados, NO subir a git)
 │   ├── scripts/
-│   │   ├── setup_db_docker.py # script de setup de base de datos
-│   │   ├── seed_db.py         # script de carga de datos
-│   │   ├── backup_db.sh       # script de backup de postgresql
-│   │   ├── create_user.py     # script de creación de usuarios
-│   │   ├── verificar_cifrado.py # script de verificación de cifrado
-│   │   └── verificar_logs.py  # script de verificación de logs
-│   ├── data/
-│   │   ├── healthcare_dataset.csv
-│   │   ├── cie10.csv
-│   │   └── healthcare_dataset_mapped.csv
-│   └── requirements.txt
+│   │   ├── setup_db_docker.py
+│   │   └── seed_db.py
+│   ├── requirements.txt
+│   └── .dockerignore
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/ (Login, Dashboard, PacienteDetalle, AuditLog)
-│   │   ├── components/ (Layout)
-│   │   ├── context/ (AuthContext)
-│   │   └── App.jsx
-│   └── package.json
+│   ├── package.json
+│   └── vite.config.js
+├── docker/
+│   ├── backend/Dockerfile
+│   ├── edge/Dockerfile
+│   ├── edge/nginx.conf
+│   └── db/init/
+│       ├── 01-roles.sql
+│       ├── 02-create-tables.sql
+│       └──  03-seed.sql
+├── scripts/
+│   ├── dev.sh
+│   ├── dev.ps1
+│   ├── gen_cert.sh
+│   ├── generate_secrets.py
+│   └── verificar_despliegue.sh
 ├── docs/
-│   ├── RECOVERY_PLAN.md               # plan de recuperación ante desastres
-│   ├── HTTPS_CONFIGURATION.md         # configuración https (http vs https)
-│   ├── PASSWORD_POLICY.md             # políticas de contraseñas
-│   ├── USER_MANAGEMENT.md             # procedimientos de gestión de usuarios
-│   ├── SECURITY_AWARENESS.md          # concientización y formación del equipo
-│   ├── INCIDENT_RESPONSE.md           # plan de respuesta ante incidentes
-│   ├── NOTIFICATION_PROCEDURES.md     # procedimientos de notificación
-│   ├── MITIGATION_PROCEDURES.md       # procedimientos de mitigación
-│   ├── FUTURE_RECOMMENDATIONS.md      # recomendaciones futuras de seguridad
-│   └── FINAL_REPORT.md                # informe final completo
-├── data/
-│   ├── cie10.csv
-│   └── healthcare_dataset_mapped.csv
+│   ├── DOCKER.md
+│   ├── HARDENING_DOCKER.md
+│   ├── FINAL_REPORT.md
+│   └── EXPOSITION_GUIDE.md
+├── certs/
+│   ├── cert.pem
+│   └── key.pem
 ├── docker-compose.yml
-├── .env
 ├── .env.example
-├── .gitignore
-├── README.md
-└── SETUP_GUIDE.md
+├── .dockerignore
+└── README.md
 ```
-
-## Endpoints principales
-
-| Método | Ruta | Rol requerido | Descripción |
-|---|---|---|---|
-| POST | `/auth/login` | público | Login, retorna JWT |
-| GET | `/pacientes` | doctor, admin, administrativo | Lista pacientes (campos según rol) |
-| GET | `/pacientes/{id}` | doctor (asignado), admin | Detalle completo |
-| POST | `/pacientes` | admin, administrativo | Crear paciente/admisión |
-| PUT | `/pacientes/{id}` | doctor (asignado), admin | Editar historial |
-| DELETE | `/pacientes/{id}` | admin | Borrado (soft-delete) |
-| GET | `/usuarios` | admin | Gestión de usuarios |
-| POST | `/usuarios` | admin | Crear usuario |
-| PATCH | `/usuarios/{id}/revocar` | admin | Revocar acceso |
-| GET | `/audit-logs` | auditor, admin | Consultar logs (solo lectura) |
-| GET | `/pacientes/me` | paciente | Ver propio historial |
-| GET | `/pacientes/doctores` | paciente, admin | Lista doctores disponibles |
-| PATCH | `/pacientes/{id}/transferir-doctor` | paciente (propio), admin | Transferir paciente a otro doctor |
-
-**Detalle de permisos:**
-- **Admin:** Acceso total a todos los endpoints (Gestión completa)
-- **Doctor:** Solo ve y edita pacientes asignados (doctor_id = current_user.id)
-- **Administrativo:** Puede crear y listar pacientes, pero no editar historial
-- **Auditor:** Solo lectura de logs de auditoría (no puede borrar ni modificar)
-- **Paciente:** Solo puede ver su propio historial y transferir a otro doctor
-
-## Plan de Recuperación ante Desastres
-
-El sistema tiene un plan completo de recuperación ante desastres documentado en `docs/RECOVERY_PLAN.md` que incluye:
-
-**Tipos de desastres considerados:**
-- Fuga de datos (acceso no autorizado, exposición de credenciales)
-- Pérdida de datos (fallo de hardware, corrupción de base de datos)
-- Ataque de ransomware
-
-**Procedimientos de recuperación:**
-- **RTO (Recovery Time Objective):** < 4 horas
-- **RPO (Recovery Point Objective):** < 24 horas
-- Backups incrementales diarios + completos semanales
-- Backups encriptados y almacenados offsite
-- Procedimientos paso a paso para restauración desde backup
-- Plan de comunicación y notificación a ARDA (Autoridad Nacional de Protección de Datos Personales)
-
-**Backup strategy:**
-- Incremental diario: Copia de cambios desde el último backup
-- Completo semanal: Copia completa de toda la base de datos
-- Encriptación: Backups encriptados con AES-256
-- Offsite: Almacenados en ubicación separada del servidor principal
-- Retención: Backups retenidos por 90 días para cumplimiento normativo
-
-**Para más detalles:** Ver el documento completo en `docs/RECOVERY_PLAN.md`
-
-## Cumplimiento normativo
-
-- **Ley N° 29733** – Ley de Protección de Datos Personales del Perú (aplicación directa: datos de salud = datos sensibles).
-- Referencia complementaria: principios de **HIPAA** (EE.UU.), dado que la estructura del dataset base sigue ese estándar.
-
-## Documentación
-
-Toda la documentación detallada del proyecto se encuentra en la carpeta `/docs/`:
-
-**Documentación de Seguridad:**
-- `docs/RECOVERY_PLAN.md` - Plan de recuperación ante desastres
-- `docs/HTTPS_CONFIGURATION.md` - Configuración HTTPS (HTTP vs HTTPS)
-- `docs/PASSWORD_POLICY.md` - Políticas de contraseñas
-- `docs/USER_MANAGEMENT.md` - Procedimientos de gestión de usuarios
-- `docs/SECURITY_AWARENESS.md` - Concientización y formación del equipo
-- `docs/INCIDENT_RESPONSE.md` - Plan de respuesta ante incidentes
-- `docs/NOTIFICATION_PROCEDURES.md` - Procedimientos de notificación
-- `docs/MITIGATION_PROCEDURES.md` - Procedimientos de mitigación
-- `docs/FUTURE_RECOMMENDATIONS.md` - Recomendaciones futuras de seguridad
-
-**Documentación de Proyecto:**
-- `docs/FINAL_REPORT.md` - Informe final completo (diseño, motivación, trasfondo teérico, requerimientos, implementación, lecciones aprendidas, retrospectiva)
-
-**Documentación de Setup:**
-- `SETUP_GUIDE.md` - Guía de setup del proyecto
-- `README.md` - Este archivo
-
-**Capturas de Pantalla:**
-- `docs/images/login.png` - Pantalla de login
-- `docs/images/admin_sistema_dashboard.png` - Dashboard del admin
-- `docs/images/admin_sistema_logs.png` - Logs de auditoría del admin
-- `docs/images/admin_clinica_dashboard.png` - Dashboard del administrativo
-- `docs/images/doctor_dashboard.png` - Dashboard del doctor
-- `docs/images/auditor_dashboard_denegado.png` - Auditor sin acceso a dashboard
-- `docs/images/auditor_logs.png` - Logs de auditoría del auditor
-- `docs/images/JWT_logs.png` - Headers JWT en Network tab
-- `docs/images/ana_no_bobby.png` - Doctor A (Ana Torres) no ve paciente demo
-- `docs/images/bobby_tranfiere_ana.png` - Paciente demo transfiere de Doctor A a Doctor B
-- `docs/images/luis_si_bobby.png` - Doctor B (Luis Ramírez) ahora sí ve paciente demo
-- `docs/images/ana_ahora_si_bobby.png` - Doctor A (Ana Torres) ya no ve paciente demo
-- `docs/images/logs_transferencia.png` - Log de auditoría de transferencia
-- `docs/images/luis_ya_no_bobby.png` - Doctor B (Luis Ramírez) ya no ve paciente demo después de transferencia
-
-**Scripts:**
-- `backend/scripts/backup_db.sh` - Script de backup de PostgreSQL
-
-## Recomendaciones futuras
-
-- Autenticación multifactor (MFA) para todos los roles
-- Migrar de certificado autofirmado a CA reconocida en producción
-- Cifrado a nivel de columna con rotación periódica de llaves (key rotation)
-- Web Application Firewall (WAF) delante del backend
-- Anonimización/seudonimización de datos en entornos de prueba
 
 ---
 
-## Extensión: Login de Paciente y Transferencia de Doctor
+## Cumplimiento normativo
 
-### Auto-Gestión de Accesos por Parte del Paciente
-
-Además del control de accesos basado en roles, se implementó un mecanismo de auto-gestión de accesos por parte del paciente: el paciente puede transferir el acceso a su historial médico de un doctor a otro directamente desde su cuenta, sin intervención de un administrador. Esta funcionalidad refuerza el principio de mínimo privilegio (solo el doctor actualmente asignado tiene acceso al historial completo) y se alinea con los derechos de los titulares de datos personales reconocidos en la **Ley N° 29733** (Ley de Protección de Datos Personales del Perú), donde el paciente mantiene control sobre quién accede a su información sensible.
-
-**Implementación:**
-- Nuevo rol `paciente` en el sistema
-- Endpoint `GET /pacientes/me` para que el paciente vea su propio historial
-- Endpoint `PATCH /pacientes/{id}/transferir-doctor` para transferir a otro doctor
-- Endpoint `GET /pacientes/doctores` para listar doctores disponibles
-- Campo `usuario_id` en el modelo `Paciente` para vincular la cuenta del paciente con su historial médico
-- Nueva acción `transferencia` en el enum de auditoría
-- Campo `detalle` en `AuditLog` para guardar el doctor anterior y el nuevo doctor
-
-**Permisos del Rol Paciente:**
-- Solo puede leer su propio historial médico (`GET /pacientes/me`)
-- Puede transferir su historial a otro doctor disponible
-- No puede ver otros pacientes
-- No puede ver logs de auditoría
-- No puede editar diagnóstico o medicación (solo transferir el acceso)
-
-**Seguridad:**
-- La transferencia solo puede ser ejecutada por:
-  - El propio paciente (self-service)
-  - Un administrador (por seguridad en caso de emergencia)
-- Cada transferencia queda registrada en el log de auditoría con:
-  - Usuario que ejecutó la acción
-  - Timestamp exacto
-  - Doctor anterior (UUID)
-  - Doctor nuevo (UUID)
-  - IP de origen
-
-**Demostración:**
-El flujo completo se puede demostrar en vivo:
-1. Login como Doctor A → muestra sus pacientes asignados
-2. Login como Doctor B → NO ve al paciente demo (asignado al Doctor A)
-3. Login como Paciente Demo → ve su historial con Doctor A asignado
-4. Paciente transfiere a Doctor B → acción registrada en logs
-5. Login como Doctor B → AHORA SÍ ve al paciente demo
-6. Login como Doctor A → YA NO ve al paciente demo
-7. Login como Auditor → log de auditoría muestra la transferencia con detalles completos
-
-**Evidencia Visual:**
-
-![Login como Doctor A - Ana Torres no ve Bobby Jackson](docs/images/ana_no_bobby.png)
-
-![Login como Paciente Demo - Bobby Jackson transfiere a Dr. Luis Ramírez](docs/images/bobby_tranfiere_ana.png)
-
-![Login como Doctor B - Luis Ramírez ahora sí ve Bobby Jackson](docs/images/luis_si_bobby.png)
-
-![Login como Doctor A - Ana Torres ya no ve Bobby Jackson](docs/images/ana_ahora_si_bobby.png)
-
-![Login como Auditor - Log de transferencia con detalles completos](docs/images/logs_transferencia.png)
-
-![Login como Doctor B - Luis Ramírez ya no ve Bobby Jackson después de transferencia](docs/images/luis_ya_no_bobby.png)
-
-### Derechos ARCO y Auto-Gestión
-
-La funcionalidad de transferencia de doctor por parte del paciente se alinea directamente con los derechos ARCO (Acceso, Rectificación, Cancelación, Oposición) reconocidos en la Ley N° 29733. Específicamente, refuerza el derecho de **Acceso** (el paciente puede ver su propio historial) y el derecho de **Oposición** (el paciente puede controlar quién accede a su información). Esto demuestra que el sistema no solo protege los datos sensibles, sino que también empodera al titular de los datos para ejercer control sobre su información.
-
-### Flujo de Transferencia de Doctor
-
-```
-┌─────────────┐
-│  Paciente   │
-│  (Login)    │
-└──────┬──────┘
-       │
-       │ GET /pacientes/me
-       │
-       ▼
-┌─────────────────┐
-│  Mi Historial   │
-│  (Frontend)    │
-└──────┬──────────┘
-       │
-       │ PATCH /pacientes/{id}/transferir-doctor
-       │ (nuevo_doctor_id)
-       │
-       ▼
-┌─────────────────┐
-│  Backend FastAPI│
-│  - Verifica     │
-│    permisos     │
-│  - Actualiza    │
-│    doctor_id    │
-│  - Registra     │
-│    en audit_log │
-└──────┬──────────┘
-       │
-       │
-       ▼
-┌─────────────────┐
-│  Doctor A       │
-│  (Pierde acceso)│
-└─────────────────┘
-
-┌─────────────────┐
-│  Doctor B       │
-│  (Gana acceso)  │
-└─────────────────┘
-
-┌─────────────────┐
-│  Audit Log      │
-│  (Registra      │
-│   transferencia)│
-└─────────────────┘
-```
-
-### Mejoras en la Auto-Gestión del Paciente (Recomendaciones Futuras)
-- Implementar notificaciones al doctor cuando un paciente transfiere su historial
-- Agregar historial de transferencias (timeline de cambios de doctor)
-- Implementar revocación de transferencia (undo) dentro de un período de tiempo
-- Agregar aprobación del doctor antes de aceptar transferencia
-- Implementar consentimiento explícito del paciente para cada acceso
+- **Ley N° 29733** – Ley de Protección de Datos Personales del Perú (aplicación directa: datos de salud = datos sensibles)
