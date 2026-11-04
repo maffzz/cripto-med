@@ -18,3 +18,9 @@ JWT_EXPIRE_MINUTES = int(_env("JWT_EXPIRE_MINUTES", "30"))
 # Cifrado AES-256-GCM (NIST SP 800-38D / FIPS 197)
 ENC_KEYS = _env("ENC_KEYS", "")
 ENC_KEY_CURRENT = _env("ENC_KEY_CURRENT", "")
+
+# Configuración de Entorno y Seguridad HTTP / CORS (OWASP)
+ENV = _env("ENV", "development").lower()
+ALLOWED_ORIGINS_RAW = _env("ALLOWED_ORIGINS", "https://localhost:8443,http://localhost:5173")
+ALLOWED_ORIGINS = [orig.strip() for orig in ALLOWED_ORIGINS_RAW.split(",") if orig.strip()]
+

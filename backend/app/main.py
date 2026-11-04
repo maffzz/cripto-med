@@ -7,36 +7,41 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+
 from app.audit import AuditMiddleware
-from app.config import JWT_SECRET
+from app.config import JWT_SECRET, ENV, ALLOWED_ORIGINS
 from app.limiter import limiter
+from app.security_headers import SecurityHeadersMiddleware
 from app.routers import auth, usuarios, pacientes, audit_logs
 
-# La inicialización de la base de datos se hace con scripts/setup_db_docker.py y seed_db.py
-# No se hace automáticamente al inicio del servicio para evitar dependencias innecesarias (pandas)
+# Determinar modo de ejecución: en producción se desactivan docs interactivos (OWASP)
+is_production = (ENV == "production")
 
 app = FastAPI(
     title="CriptoMed",
     description="Historiales clínicos con RBAC, cifrado y auditoría — DS3031",
     version="0.1.0",
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
 )
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# --- Configuración de CORS ---
+# 1. Middleware de Cabeceras de Seguridad HTTP (HSTS, CSP, nosniff, no-store, DENY)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 2. Configuración restrictiva de CORS (Paso 1.6a)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://maffzz.github.io"
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Forwarded-For"],
 )
 
-# Middleware de auditoría
+# 3. Middleware de auditoría forense con cadena de hashes SHA-256
 app.add_middleware(AuditMiddleware)
 
 app.include_router(auth.router)
@@ -53,9 +58,5 @@ def health() -> dict[str, str]:
 def read_root():
     return {
         "mensaje": "Bienvenido a CriptoMed API",
-        "docs": "Visita /docs para probar los endpoints de autenticación"
+        "docs": "Visita /docs para probar los endpoints de autenticación" if not is_production else "Deshabilitado en producción"
     }
-
-# Nota: El bloque if __name__ == "__main__" fue eliminado porque
-# en Docker el comando uvicorn se ejecuta directamente desde el Dockerfile.
-# El TLS ahora lo maneja el edge Nginx, no el backend.
