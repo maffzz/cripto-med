@@ -158,6 +158,29 @@ services:
     pids_limit: 50
     restart: "no"
 
+  backup:
+    build:
+      context: .
+      dockerfile: docker/backup/Dockerfile
+    container_name: criptomed_backup
+    profiles:
+      - tools
+    networks:
+      - db_net
+    volumes:
+      - ./backups:/backups
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE}
+      PGHOST: db
+      PGPORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
 volumes:
   pgdata:
 
