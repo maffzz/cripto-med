@@ -2,16 +2,17 @@ from typing import List, Union
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 
 from app.database import get_db
-from app.models import Paciente, RolEnum, Usuario, AccionEnum, AuditLog
+from app.models import Paciente, RolEnum, Usuario, AccionEnum, AuditLog, AccesoEmergencia
 from app.schemas import (
     PacienteCreate,
     PacienteResponse,
     PacienteResponseBasico,
     PaginatedAccesosResponse,
     AccesoLogItem,
+    AccesoEmergenciaRequest,
 )
 from app.rbac import require_role, get_current_user
 from app.crypto import encrypt, decrypt
@@ -282,13 +283,26 @@ def obtener_paciente(
         )
     
     # Verificar permisos por rol
+    es_acceso_emergencia = False
     if current_user.rol == RolEnum.doctor:
-        # Doctor solo puede ver pacientes asignados
+        # Doctor solo puede ver pacientes asignados O con pase de emergencia activo
         if paciente.doctor_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No autorizado para ver este paciente"
+            ahora = dt.utcnow()
+            acceso_emergencia_activo = (
+                db.query(AccesoEmergencia)
+                .filter(
+                    AccesoEmergencia.paciente_id == paciente.id,
+                    AccesoEmergencia.doctor_id == current_user.id,
+                    AccesoEmergencia.expira_en > ahora
+                )
+                .first()
             )
+            if not acceso_emergencia_activo:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="No autorizado para ver este paciente. En situaciones de emergencia utilice el protocolo break-glass."
+                )
+            es_acceso_emergencia = True
     
     # Auditor no debería llegar aquí por el decorador autorizado_lista, pero por seguridad:
     if current_user.rol == RolEnum.auditor:
@@ -299,16 +313,86 @@ def obtener_paciente(
     
     # Registrar auditoría de lectura (NIST SP 800-92)
     ip = extract_client_ip(request)
+    detalle = f"rol={current_user.rol.value}"
+    if es_acceso_emergencia:
+        detalle += " (acceso_emergencia_activo)"
+
     log_action(
         db=db,
         accion=AccionEnum.lectura,
         recurso=f"paciente:{paciente_id}",
         usuario_id=current_user.id,
         ip_origen=ip,
-        detalle=f"rol={current_user.rol.value}"
+        detalle=detalle
     )
     
     return formatear_paciente_respuesta(paciente, current_user)
+
+
+@router.post("/{paciente_id}/acceso-emergencia")
+def solicitar_acceso_emergencia(
+    paciente_id: UUID,
+    request_data: AccesoEmergenciaRequest,
+    request: Request,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Acceso de emergencia (break-glass) de uso excepcional para personal médico (NIST SP 800-92).
+    Permite a un doctor no asignado acceder al expediente por 30 minutos con justificación obligatoria."""
+    if current_user.rol != RolEnum.doctor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El acceso de emergencia (break-glass) es de uso exclusivo para personal médico con rol doctor"
+        )
+    
+    justificacion = (request_data.justificacion or "").strip()
+    if len(justificacion) < 20:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La justificación médica de acceso de emergencia debe tener al menos 20 caracteres"
+        )
+    
+    paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
+    if not paciente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Paciente no encontrado"
+        )
+
+    ahora = dt.utcnow()
+    expira = ahora + timedelta(minutes=30)
+
+    acceso = AccesoEmergencia(
+        id=uuid4(),
+        paciente_id=paciente.id,
+        doctor_id=current_user.id,
+        justificacion=justificacion,
+        otorgado_en=ahora,
+        expira_en=expira,
+    )
+    db.add(acceso)
+    db.commit()
+
+    # Registrar en la cadena SHA-256 de auditoría como acceso_emergencia
+    ip = extract_client_ip(request)
+    log_action(
+        db=db,
+        accion=AccionEnum.acceso_emergencia,
+        recurso=f"paciente:{paciente.id}",
+        usuario_id=current_user.id,
+        ip_origen=ip,
+        detalle=f"acceso_emergencia: {justificacion}"
+    )
+
+    datos_paciente = formatear_paciente_respuesta(paciente, current_user)
+    return {
+        "mensaje": "Acceso de emergencia (break-glass) concedido por 30 minutos",
+        "acceso_id": str(acceso.id),
+        "expira_en": expira.isoformat(),
+        "justificacion": justificacion,
+        "paciente": datos_paciente
+    }
+
 
 @router.post("", status_code=status.HTTP_201_CREATED, dependencies=[autorizado_lista])
 def crear_paciente(paciente_in: PacienteCreate, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):

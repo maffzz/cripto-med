@@ -338,13 +338,14 @@ const MiHistorial = () => {
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap">
                           <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                            log.accion === 'acceso_emergencia' ? 'bg-red-600 text-white font-bold' :
                             log.accion === 'transferencia' ? 'bg-purple-100 text-purple-800' :
                             log.accion === 'exportacion' ? 'bg-emerald-100 text-emerald-800' :
                             log.accion === 'lectura' ? 'bg-blue-100 text-blue-800' :
                             log.accion === 'edicion' ? 'bg-amber-100 text-amber-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {log.accion}
+                            {log.accion === 'acceso_emergencia' ? '🚨 Acceso de Emergencia' : log.accion}
                           </span>
                         </td>
                         <td className="px-4 py-2 text-gray-900 font-medium whitespace-nowrap">

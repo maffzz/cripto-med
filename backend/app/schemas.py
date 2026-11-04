@@ -117,3 +117,10 @@ class PaginatedAccesosResponse(BaseModel):
     items: List[AccesoLogItem]
     limit: int
     offset: int
+
+
+# --- Esquemas de Acceso de Emergencia (Break-Glass) ---
+
+class AccesoEmergenciaRequest(BaseModel):
+    justificacion: str
+

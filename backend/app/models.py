@@ -28,6 +28,7 @@ class AccionEnum(enum.Enum):
     borrado = "borrado" # eliminacion de datos
     transferencia = "transferencia" # transferencia de paciente a otro doctor
     exportacion = "exportacion" # descarga o exportacion de datos del titular
+    acceso_emergencia = "acceso_emergencia" # acceso break-glass de emergencia excepcional
 
 
 # modelo de usuario
@@ -142,3 +143,18 @@ class AuditLog(Base):
     detalle = Column(String, nullable=True) # detalle adicional, ej: "doctor_anterior=UUID, doctor_nuevo=UUID"
 
     usuario = relationship("Usuario", back_populates="audit_logs")
+
+
+# modelo para control de accesos de emergencia (break-glass) con ventana temporal
+class AccesoEmergencia(Base):
+    __tablename__ = "accesos_emergencia"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4)
+    paciente_id = Column(UUID(as_uuid=True), ForeignKey("pacientes.id"), nullable=False)
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+    justificacion = Column(String, nullable=False)
+    otorgado_en = Column(DateTime, default=dt.utcnow, nullable=False)
+    expira_en = Column(DateTime, nullable=False)
+
+    paciente = relationship("Paciente")
+    doctor = relationship("Usuario")

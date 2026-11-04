@@ -223,6 +223,36 @@ def detectar_alertas(
             }
         ))
 
+    # -------------------------------------------------------------
+    # Regla 4: Accesos de Emergencia (Break-Glass) a Revisar por Auditor
+    # -------------------------------------------------------------
+    logs_emergencia = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.accion == AccionEnum.acceso_emergencia,
+            AuditLog.timestamp >= ventana_horario.replace(tzinfo=None)
+        )
+        .all()
+    )
+    for log in logs_emergencia:
+        alertas.append(AlertaItem(
+            tipo="ACCESO_EMERGENCIA_BREAK_GLASS",
+            nivel="ALTA",
+            descripcion=(
+                f"Acceso de emergencia ('break-glass') ejecutado sobre '{log.recurso}'. "
+                f"Requiere revisión y justificación médica inmediata por el auditor."
+            ),
+            usuario_id=log.usuario_id,
+            recurso=log.recurso,
+            ip_origen=log.ip_origen,
+            timestamp=log.timestamp,
+            detalles={
+                "accion": "acceso_emergencia",
+                "justificacion": log.detalle,
+                "recurso": log.recurso
+            }
+        ))
+
     return ReporteAlertas(
         total_alertas=len(alertas),
         generado_en=now,
