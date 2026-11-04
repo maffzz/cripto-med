@@ -33,6 +33,8 @@ def crear_tablas():
                 ALTER TYPE accionenum ADD VALUE IF NOT EXISTS 'exportacion';
                 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intentos_fallidos INTEGER NOT NULL DEFAULT 0;
                 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_hasta TIMESTAMP;
+                ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS consentimiento_fecha TIMESTAMP;
+                ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS consentimiento_version VARCHAR;
             """))
             conn.commit()
 

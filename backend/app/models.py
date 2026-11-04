@@ -71,6 +71,8 @@ class Paciente(Base):
     fecha_alta = Column(DateTime)
     medicacion = Column(String) # cifrado en capa de aplicación
     resultado_test = Column(String) # cifrado en capa de aplicación
+    consentimiento_fecha = Column(DateTime, nullable=True)
+    consentimiento_version = Column(String, nullable=True, default="v1.0")
 
     doctor = relationship("Usuario", back_populates="pacientes_asignados", foreign_keys=[doctor_id])
     usuario = relationship("Usuario", foreign_keys=[usuario_id])

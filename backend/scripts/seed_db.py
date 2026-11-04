@@ -10,7 +10,7 @@ import os
 import csv
 import uuid
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -161,35 +161,48 @@ def cargar_pacientes(db: Session, limite: int = 500) -> int:
 
 
 def crear_usuarios_iniciales(db: Session) -> int:
-    count = db.query(Usuario).count()
-    if count > 0:
-        print(f"Usuarios demo ya creados ({count} registros), omitiendo...")
-        return count
-
     usuarios = [
         {
             "nombre": "Admin Sistema",
             "email": "admin@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_ADMIN", "Admin_CriptoMed_2026!"),
+            "password": os.getenv("DEMO_PASSWORD_ADMIN", "CriptoMed_Adm#2026_Sec"),
             "rol": RolEnum.admin
         },
         {
-            "nombre": "Dr. Juan Perez",
+            "nombre": "Dra. Ana Torres",
             "email": "doctor@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "Doctor_CriptoMed_2026!"),
+            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "Medicos_CriptoMed#2026!"),
+            "rol": RolEnum.doctor
+        },
+        {
+            "nombre": "Dr. Luis Ramírez",
+            "email": "dr.ramirez@criptomed.com",
+            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "Medicos_CriptoMed#2026!"),
+            "rol": RolEnum.doctor
+        },
+        {
+            "nombre": "Dra. Carla Quispe",
+            "email": "dra.quispe@criptomed.com",
+            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "Medicos_CriptoMed#2026!"),
             "rol": RolEnum.doctor
         },
         {
             "nombre": "Maria Lopez",
             "email": "admin@clinica.com",
-            "password": os.getenv("DEMO_PASSWORD_ADMINISTRATIVO", "Admini_CriptoMed_2026!"),
+            "password": os.getenv("DEMO_PASSWORD_ADMINISTRATIVO", "Gestion_Clinica#2026!"),
             "rol": RolEnum.administrativo
         },
         {
             "nombre": "Auditor Externo",
             "email": "auditor@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_AUDITOR", "Auditor_CriptoMed_2026!"),
+            "password": os.getenv("DEMO_PASSWORD_AUDITOR", "Control_Forense#2026!"),
             "rol": RolEnum.auditor
+        },
+        {
+            "nombre": "Paciente Demo",
+            "email": "paciente@criptomed.com",
+            "password": os.getenv("DEMO_PASSWORD_PACIENTE", "Salud_Titular#2026_Clave!"),
+            "rol": RolEnum.paciente
         }
     ]
 
@@ -197,6 +210,10 @@ def crear_usuarios_iniciales(db: Session) -> int:
     for udata in usuarios:
         existe = db.query(Usuario).filter(Usuario.email == udata["email"]).first()
         if existe:
+            # Actualizar nombre si cambió (ej. de Dr. Juan Perez a Dra. Ana Torres)
+            if existe.nombre != udata["nombre"]:
+                existe.nombre = udata["nombre"]
+                db.commit()
             continue
         
         pwd = udata["password"]
@@ -213,7 +230,71 @@ def crear_usuarios_iniciales(db: Session) -> int:
         contador += 1
 
     db.commit()
-    print(f"✅ Se crearon {contador} usuarios iniciales de demo.")
+    print(f"✅ Se sincronizaron/crearon {contador} usuarios de demo.")
+
+    # Vincular o crear expediente médico para el Paciente Demo
+    paciente_user = db.query(Usuario).filter(Usuario.email == "paciente@criptomed.com").first()
+    dra_torres = db.query(Usuario).filter(Usuario.email == "doctor@criptomed.com").first()
+    dr_ramirez = db.query(Usuario).filter(Usuario.email == "dr.ramirez@criptomed.com").first()
+    dra_quispe = db.query(Usuario).filter(Usuario.email == "dra.quispe@criptomed.com").first()
+
+    if paciente_user:
+        expediente_demo = db.query(Paciente).filter(Paciente.usuario_id == paciente_user.id).first()
+        if not expediente_demo:
+            nuevo_pid = uuid.uuid4()
+            pid_str = str(nuevo_pid)
+            consent_fecha = datetime.utcnow() - timedelta(days=10)
+            expediente_demo = Paciente(
+                id=nuevo_pid,
+                usuario_id=paciente_user.id,
+                doctor_id=dra_torres.id if dra_torres else None,
+                nombre=encrypt("Paciente Demo", aad=f"pacientes.nombre.{pid_str}"),
+                edad=34,
+                genero="Femenino",
+                tipo_sangre="O+",
+                diagnostico=encrypt("Hipertensión esencial", aad=f"pacientes.diagnostico.{pid_str}"),
+                codigo_cie10="I10",
+                fecha_admision=datetime.utcnow() - timedelta(days=15),
+                hospital="Clínica San Borja",
+                proveedor_seguro="Rímac Seguros",
+                monto_facturado=encrypt("450.00", aad=f"pacientes.monto_facturado.{pid_str}"),
+                numero_habitacion="302",
+                tipo_admision="Consulta Externa",
+                fecha_alta=None,
+                medicacion=encrypt("Losartán 50mg cada 12 horas", aad=f"pacientes.medicacion.{pid_str}"),
+                resultado_test=encrypt("Presión arterial: 120/80 mmHg. Perfil lipídico normal.", aad=f"pacientes.resultado_test.{pid_str}"),
+                consentimiento_fecha=consent_fecha,
+                consentimiento_version="v1.0"
+            )
+            db.add(expediente_demo)
+            db.commit()
+            print(f"✅ Expediente médico creado para Paciente Demo (asignado a Dra. Ana Torres).")
+        else:
+            # Asegurar que tenga consentimiento y asignación
+            if not expediente_demo.consentimiento_fecha:
+                expediente_demo.consentimiento_fecha = datetime.utcnow() - timedelta(days=10)
+                expediente_demo.consentimiento_version = "v1.0"
+            if not expediente_demo.doctor_id and dra_torres:
+                expediente_demo.doctor_id = dra_torres.id
+            db.commit()
+
+    # Asignar doctores a pacientes existentes que no tengan doctor_id
+    if dra_torres and dr_ramirez and dra_quispe:
+        pacientes_sin_doc = db.query(Paciente).filter(Paciente.doctor_id == None, Paciente.usuario_id == None).all()
+        for idx, p in enumerate(pacientes_sin_doc):
+            if idx % 3 == 0:
+                p.doctor_id = dra_torres.id
+            elif idx % 3 == 1:
+                p.doctor_id = dr_ramirez.id
+            else:
+                p.doctor_id = dra_quispe.id
+            if not p.consentimiento_fecha:
+                p.consentimiento_fecha = datetime.utcnow() - timedelta(days=30)
+                p.consentimiento_version = "v1.0"
+        db.commit()
+        if pacientes_sin_doc:
+            print(f"✅ Asignados {len(pacientes_sin_doc)} pacientes a los 3 doctores equitativamente.")
+
     return contador
 
 

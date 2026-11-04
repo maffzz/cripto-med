@@ -43,6 +43,8 @@ class PacienteBase(BaseModel):
     numero_habitacion: Optional[str] = None
     tipo_admision: Optional[str] = None
     fecha_alta: Optional[datetime] = None
+    consentimiento_fecha: Optional[datetime] = None
+    consentimiento_version: Optional[str] = None
 
 class PacienteCreate(PacienteBase):
     # Campos que el usuario envía en claro al crear
@@ -96,3 +98,22 @@ class AuditLogResponse(AuditLogBase):
     timestamp: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- Esquemas de Trazabilidad para el Paciente ---
+
+class AccesoLogItem(BaseModel):
+    id: UUID
+    seq: Optional[int] = None
+    timestamp: datetime
+    accion: str
+    profesional_nombre: str
+    profesional_rol: str
+    ip_origen: Optional[str] = None
+    detalle: Optional[str] = None
+
+class PaginatedAccesosResponse(BaseModel):
+    total: int
+    items: List[AccesoLogItem]
+    limit: int
+    offset: int

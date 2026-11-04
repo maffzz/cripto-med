@@ -5,8 +5,14 @@ from sqlalchemy.orm import Session
 from datetime import datetime as dt
 
 from app.database import get_db
-from app.models import Paciente, RolEnum, Usuario, AccionEnum
-from app.schemas import PacienteCreate, PacienteResponse, PacienteResponseBasico
+from app.models import Paciente, RolEnum, Usuario, AccionEnum, AuditLog
+from app.schemas import (
+    PacienteCreate,
+    PacienteResponse,
+    PacienteResponseBasico,
+    PaginatedAccesosResponse,
+    AccesoLogItem,
+)
 from app.rbac import require_role, get_current_user
 from app.crypto import encrypt, decrypt
 from app.audit import log_action, extract_client_ip
@@ -38,6 +44,8 @@ def formatear_paciente_respuesta(p: Paciente, usuario: Usuario = None) -> dict:
         "tipo_admision": p.tipo_admision,
         "fecha_alta": p.fecha_alta.isoformat() if p.fecha_alta else None,
         "doctor_id": str(p.doctor_id) if p.doctor_id else None,
+        "consentimiento_fecha": p.consentimiento_fecha.isoformat() if p.consentimiento_fecha else None,
+        "consentimiento_version": p.consentimiento_version or "v1.0",
         "nombre_descifrado": decrypt(p.nombre, aad=f"pacientes.nombre.{pid}") if p.nombre else "",
         "monto_facturado_descifrado": decrypt(p.monto_facturado, aad=f"pacientes.monto_facturado.{pid}") if p.monto_facturado else None,
     }
@@ -82,6 +90,7 @@ def listar_pacientes(
 
 @router.get("/me", response_model=PacienteResponse)
 def mi_historial(
+    request: Request,
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -97,7 +106,147 @@ def mi_historial(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No se encontró el historial del paciente"
         )
+    
+    # Registrar acceso de lectura del titular en audit_logs (NIST SP 800-92)
+    ip = extract_client_ip(request)
+    log_action(
+        db=db,
+        accion=AccionEnum.lectura,
+        recurso=f"paciente:{paciente.id}",
+        usuario_id=current_user.id,
+        ip_origen=ip,
+        detalle="consulta_propia_titular"
+    )
     return formatear_paciente_respuesta(paciente)
+
+
+@router.get("/me/accesos", response_model=PaginatedAccesosResponse)
+def mis_accesos(
+    limit: int = 20,
+    offset: int = 0,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Lista paginada de los accesos al historial del paciente autenticado (NIST SP 800-92 / Ley 29733).
+    Solo el propio paciente puede ver los accesos a su expediente."""
+    if current_user.rol != RolEnum.paciente:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso restringido únicamente a usuarios con rol paciente"
+        )
+    paciente = db.query(Paciente).filter(Paciente.usuario_id == current_user.id).first()
+    if not paciente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No se encontró expediente asociado a esta cuenta de paciente"
+        )
+    
+    recurso_paciente = f"paciente:{paciente.id}"
+    query = (
+        db.query(AuditLog)
+        .filter(AuditLog.recurso == recurso_paciente)
+        .order_by(AuditLog.seq.desc())
+    )
+    total = query.count()
+    logs = query.offset(offset).limit(limit).all()
+
+    items = []
+    for log in logs:
+        nombre = log.usuario.nombre if log.usuario else "Sistema / Automatizado"
+        rol = log.usuario.rol.value if (log.usuario and hasattr(log.usuario.rol, 'value')) else "sistema"
+        accion_val = log.accion.value if hasattr(log.accion, 'value') else str(log.accion)
+        items.append(
+            AccesoLogItem(
+                id=log.id,
+                seq=log.seq,
+                timestamp=log.timestamp,
+                accion=accion_val,
+                profesional_nombre=nombre,
+                profesional_rol=rol,
+                ip_origen=log.ip_origen,
+                detalle=log.detalle,
+            )
+        )
+
+    return PaginatedAccesosResponse(
+        total=total,
+        items=items,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/me/export")
+def exportar_mi_historial(
+    request: Request,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Devuelve en JSON los datos del paciente ya descifrados (derecho de acceso y portabilidad Ley 29733)
+    y registra el evento con la acción exportacion en la cadena SHA-256."""
+    if current_user.rol != RolEnum.paciente:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso restringido únicamente a usuarios con rol paciente"
+        )
+    paciente = db.query(Paciente).filter(Paciente.usuario_id == current_user.id).first()
+    if not paciente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No se encontró expediente asociado a esta cuenta de paciente"
+        )
+
+    pid = str(paciente.id)
+    ip = extract_client_ip(request)
+
+    # Registrar en la cadena de auditoría SHA-256 (NIST SP 800-92)
+    log_action(
+        db=db,
+        accion=AccionEnum.exportacion,
+        recurso=f"paciente:{pid}",
+        usuario_id=current_user.id,
+        ip_origen=ip,
+        detalle="exportacion_datos_titular_ley_29733"
+    )
+
+    doctor_nombre = paciente.doctor.nombre if paciente.doctor else "Sin doctor asignado"
+
+    return {
+        "titular": {
+            "usuario_id": str(current_user.id),
+            "nombre_cuenta": current_user.nombre,
+            "email": current_user.email,
+        },
+        "expediente": {
+            "id": pid,
+            "nombre": paciente.nombre_descifrado,
+            "edad": paciente.edad,
+            "genero": paciente.genero,
+            "tipo_sangre": paciente.tipo_sangre,
+            "diagnostico": paciente.diagnostico_descifrado,
+            "codigo_cie10": paciente.codigo_cie10,
+            "medicacion": paciente.medicacion_descifrado,
+            "resultado_test": paciente.resultado_test_descifrado,
+            "fecha_admision": paciente.fecha_admision.isoformat() if paciente.fecha_admision else None,
+            "fecha_alta": paciente.fecha_alta.isoformat() if paciente.fecha_alta else None,
+            "hospital": paciente.hospital,
+            "numero_habitacion": paciente.numero_habitacion,
+            "tipo_admision": paciente.tipo_admision,
+            "proveedor_seguro": paciente.proveedor_seguro,
+            "monto_facturado": paciente.monto_facturado_descifrado,
+            "doctor_asignado": doctor_nombre,
+            "consentimiento": {
+                "version": paciente.consentimiento_version or "v1.0",
+                "fecha": paciente.consentimiento_fecha.isoformat() if paciente.consentimiento_fecha else None,
+            }
+        },
+        "metadatos_exportacion": {
+            "fecha_exportacion": dt.utcnow().isoformat() + "Z",
+            "formato": "JSON",
+            "derecho_ejercido": "Acceso y Portabilidad (Ley 29733 / D.S. 016-2024-JUS / GDPR Art. 20)",
+            "responsable_tratamiento": "CriptoMed Salud Digital"
+        }
+    }
 
 
 @router.get("/doctores")
@@ -118,7 +267,12 @@ def listar_doctores(db: Session = Depends(get_db)):
 
 
 @router.get("/{paciente_id}", dependencies=[autorizado_lista])
-def obtener_paciente(paciente_id: UUID, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+def obtener_paciente(
+    paciente_id: UUID,
+    request: Request,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Busca un paciente específico y devuelve sus datos descifrados según el rol."""
     paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
     if not paciente:
@@ -142,6 +296,17 @@ def obtener_paciente(paciente_id: UUID, current_user: Usuario = Depends(get_curr
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No autorizado para ver pacientes"
         )
+    
+    # Registrar auditoría de lectura (NIST SP 800-92)
+    ip = extract_client_ip(request)
+    log_action(
+        db=db,
+        accion=AccionEnum.lectura,
+        recurso=f"paciente:{paciente_id}",
+        usuario_id=current_user.id,
+        ip_origen=ip,
+        detalle=f"rol={current_user.rol.value}"
+    )
     
     return formatear_paciente_respuesta(paciente, current_user)
 
