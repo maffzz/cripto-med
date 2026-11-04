@@ -20,11 +20,14 @@ class RolEnum(enum.Enum):
 
 # enum para acciones de auditoria
 class AccionEnum(enum.Enum):
-    login = "login" # inicio de sesion
+    login = "login" # inicio de sesion exitoso
+    login_fallido = "login_fallido" # intento de autenticacion fallido
+    bloqueo = "bloqueo" # cuenta bloqueada por exceso de intentos
     lectura = "lectura" # consulta de datos
     edicion = "edicion" # modificacion de datos
     borrado = "borrado" # eliminacion de datos
     transferencia = "transferencia" # transferencia de paciente a otro doctor
+    exportacion = "exportacion" # descarga o exportacion de datos del titular
 
 
 # modelo de usuario
@@ -37,6 +40,8 @@ class Usuario(Base):
     password_hash = Column(String, nullable=False) # hash con bcrypt/Argon2
     rol = Column(SQLEnum(RolEnum), nullable=False)
     activo = Column(Boolean, default=True) # para revocación de accesos
+    intentos_fallidos = Column(Integer, default=0, nullable=False)
+    bloqueado_hasta = Column(DateTime, nullable=True)
     creado_en = Column(DateTime, default=dt.utcnow)
 
     pacientes_asignados = relationship("Paciente", back_populates="doctor", foreign_keys="Paciente.doctor_id")

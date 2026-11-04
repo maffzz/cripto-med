@@ -5,8 +5,11 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from app.audit import AuditMiddleware
 from app.config import JWT_SECRET
+from app.limiter import limiter
 from app.routers import auth, usuarios, pacientes, audit_logs
 
 # La inicialización de la base de datos se hace con scripts/setup_db_docker.py y seed_db.py
@@ -17,6 +20,9 @@ app = FastAPI(
     description="Historiales clínicos con RBAC, cifrado y auditoría — DS3031",
     version="0.1.0",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # --- Configuración de CORS ---
 app.add_middleware(

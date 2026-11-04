@@ -24,6 +24,18 @@ def crear_tablas():
         for table in Base.metadata.sorted_tables:
             print(f"  - {table.name}")
         
+        # Migraciones / extensiones idempotentes
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("""
+                ALTER TYPE accionenum ADD VALUE IF NOT EXISTS 'login_fallido';
+                ALTER TYPE accionenum ADD VALUE IF NOT EXISTS 'bloqueo';
+                ALTER TYPE accionenum ADD VALUE IF NOT EXISTS 'exportacion';
+                ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intentos_fallidos INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_hasta TIMESTAMP;
+            """))
+            conn.commit()
+
         # Aplicar triggers y permisos sobre audit_logs
         aplicar_triggers_y_permisos(engine)
         return True
