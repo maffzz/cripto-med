@@ -71,6 +71,7 @@ services:
       - ./backend/app:/app/app:ro
       - ./backend/scripts:/app/scripts:ro
       - ./backend/tests:/app/tests:ro
+      - ./pytest.ini:/app/pytest.ini:ro
     security_opt:
       - no-new-privileges:true
     cap_drop:
