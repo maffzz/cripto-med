@@ -68,6 +68,7 @@ services:
       - app_net
       - db_net
     volumes:
+      - ./data:/app/data:ro
       - ./backend/app:/app/app:ro
       - ./backend/scripts:/app/scripts:ro
       - ./backend/tests:/app/tests:ro

@@ -17,13 +17,11 @@ from app.auth import get_password_hash
 @pytest.fixture(scope="function")
 def db():
     """Fixture para crear una sesión de base de datos."""
-    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-        Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(scope="function")
@@ -34,75 +32,34 @@ def client(db):
 
 @pytest.fixture(scope="function")
 def test_users(db):
-    """Fixture para crear usuarios de prueba por rol."""
-    users = {}
-    
-    # Admin
-    admin = Usuario(
-        email="admin@test.com",
-        nombre="Admin Test",
-        password_hash=get_password_hash("admin123"),
-        rol=RolEnum.admin,
-        activo=True
-    )
-    db.add(admin)
-    db.commit()
-    db.refresh(admin)
-    users["admin"] = admin
-    
-    # Doctor
-    doctor = Usuario(
-        email="doctor@test.com",
-        nombre="Doctor Test",
-        password_hash=get_password_hash("doctor123"),
-        rol=RolEnum.doctor,
-        activo=True
-    )
-    db.add(doctor)
-    db.commit()
-    db.refresh(doctor)
-    users["doctor"] = doctor
-    
-    # Administrativo
-    administrativo = Usuario(
-        email="admini@test.com",
-        nombre="Administrativo Test",
-        password_hash=get_password_hash("admini123"),
-        rol=RolEnum.administrativo,
-        activo=True
-    )
-    db.add(administrativo)
-    db.commit()
-    db.refresh(administrativo)
-    users["administrativo"] = administrativo
-    
-    # Auditor
-    auditor = Usuario(
-        email="auditor@test.com",
-        nombre="Auditor Test",
-        password_hash=get_password_hash("auditor123"),
-        rol=RolEnum.auditor,
-        activo=True
-    )
-    db.add(auditor)
-    db.commit()
-    db.refresh(auditor)
-    users["auditor"] = auditor
-    
-    # Paciente
-    paciente_usuario = Usuario(
-        email="paciente@test.com",
-        nombre="Paciente Test",
-        password_hash=get_password_hash("paciente123"),
-        rol=RolEnum.paciente,
-        activo=True
-    )
-    db.add(paciente_usuario)
-    db.commit()
-    db.refresh(paciente_usuario)
-    users["paciente"] = paciente_usuario
-    
-    return users
+    """Fixture para crear o recuperar usuarios de prueba por rol."""
+    def _get_or_create(email, nombre, password, rol):
+        u = db.query(Usuario).filter(Usuario.email == email).first()
+        if not u:
+            u = Usuario(
+                email=email,
+                nombre=nombre,
+                password_hash=get_password_hash(password),
+                rol=rol,
+                activo=True
+            )
+            db.add(u)
+            db.commit()
+            db.refresh(u)
+        else:
+            u.password_hash = get_password_hash(password)
+            u.activo = True
+            db.commit()
+            db.refresh(u)
+        return u
+
+    return {
+        "admin": _get_or_create("admin@test.com", "Admin Test", "admin123", RolEnum.admin),
+        "doctor": _get_or_create("doctor@test.com", "Doctor Test", "doctor123", RolEnum.doctor),
+        "administrativo": _get_or_create("admini@test.com", "Administrativo Test", "admini123", RolEnum.administrativo),
+        "auditor": _get_or_create("auditor@test.com", "Auditor Test", "auditor123", RolEnum.auditor),
+        "paciente": _get_or_create("paciente@test.com", "Paciente Test", "paciente123", RolEnum.paciente),
+    }
 
 
 @pytest.fixture(scope="function")
@@ -137,16 +94,18 @@ def test_pacientes(db, test_users):
     db.refresh(paciente_asignado)
     
     # Paciente asignado a otro doctor
-    otro_doctor = Usuario(
-        email="otro_doctor@test.com",
-        nombre="Otro Doctor",
-        password_hash=get_password_hash("doctor123"),
-        rol=RolEnum.doctor,
-        activo=True
-    )
-    db.add(otro_doctor)
-    db.commit()
-    db.refresh(otro_doctor)
+    otro_doctor = db.query(Usuario).filter(Usuario.email == "otro_doctor@test.com").first()
+    if not otro_doctor:
+        otro_doctor = Usuario(
+            email="otro_doctor@test.com",
+            nombre="Otro Doctor",
+            password_hash=get_password_hash("doctor123"),
+            rol=RolEnum.doctor,
+            activo=True
+        )
+        db.add(otro_doctor)
+        db.commit()
+        db.refresh(otro_doctor)
     
     id_no_asignado = uuid4()
     pid2 = str(id_no_asignado)
@@ -173,10 +132,16 @@ def test_pacientes(db, test_users):
     db.commit()
     db.refresh(paciente_no_asignado)
     
-    return {
+    yield {
         "asignado": paciente_asignado,
         "no_asignado": paciente_no_asignado
     }
+    try:
+        db.delete(paciente_asignado)
+        db.delete(paciente_no_asignado)
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def get_auth_token(client, email, password):
@@ -291,10 +256,11 @@ class TestPacientesPorRol:
         assert response.status_code == 200
         pacientes = response.json()
         
-        # Solo debe ver el paciente asignado a él
-        assert len(pacientes) == 1
-        assert str(pacientes[0]["id"]) == str(test_pacientes["asignado"].id)
-        assert pacientes[0]["doctor_id"] == str(test_users["doctor"].id)
+        # Debe ver solo pacientes asignados a su ID
+        ids = [p["id"] for p in pacientes]
+        assert str(test_pacientes["asignado"].id) in ids
+        assert str(test_pacientes["no_asignado"].id) not in ids
+        assert all(p["doctor_id"] == str(test_users["doctor"].id) for p in pacientes)
     
     def test_doctor_no_puede_ver_paciente_no_asignado(self, client, test_users, test_pacientes):
         """Test que verifica que el doctor no puede ver pacientes no asignados."""

@@ -47,20 +47,30 @@ def verificar_restauracion():
 
     # --------------------------------------------------------------------------
     # 1. Comparación de conteos de filas por tabla
+    # Whitelist estática con consultas parametrizadas para evitar B608 (SQLi)
     # --------------------------------------------------------------------------
     print("\n--- 1. COMPARACIÓN DE CONTEO DE FILAS ---")
+    QUERIES_CONTEO = {
+        "usuarios": text("SELECT COUNT(*) FROM usuarios"),
+        "pacientes": text("SELECT COUNT(*) FROM pacientes"),
+        "audit_logs": text("SELECT COUNT(*) FROM audit_logs"),
+        "diagnosticos_cie10": text("SELECT COUNT(*) FROM diagnosticos_cie10"),
+    }
     tablas = ["usuarios", "pacientes", "audit_logs", "diagnosticos_cie10"]
     print(f"{'Tabla':<25} | {'Base Original':<15} | {'Base Restaurada':<15} | {'Estado':<10}")
     print("-" * 65)
 
     with engine_orig.connect() as conn_orig, engine_rest.connect() as conn_rest:
         for tabla in tablas:
+            query = QUERIES_CONTEO.get(tabla)
+            if not query:
+                continue
             try:
-                cnt_orig = conn_orig.execute(text(f"SELECT COUNT(*) FROM {tabla}")).scalar()
+                cnt_orig = conn_orig.execute(query).scalar()
             except Exception:
                 cnt_orig = 0
             try:
-                cnt_rest = conn_rest.execute(text(f"SELECT COUNT(*) FROM {tabla}")).scalar()
+                cnt_rest = conn_rest.execute(query).scalar()
             except Exception as e:
                 cnt_rest = f"Error ({e})"
 

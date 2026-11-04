@@ -120,7 +120,19 @@ def emergency_data():
             }
         }
     finally:
-        session.close()
+        try:
+            session.query(AccesoEmergencia).filter(AccesoEmergencia.paciente_id == paciente.id).delete()
+            session.delete(paciente)
+            session.delete(user_pac)
+            session.delete(doc_titular)
+            session.delete(doc_urgencias)
+            session.delete(auditor)
+            session.delete(adminis)
+            session.commit()
+        except Exception:
+            session.rollback()
+        finally:
+            session.close()
 
 
 def test_rol_no_doctor_rechazado_para_acceso_emergencia(client, emergency_data):

@@ -24,7 +24,10 @@ from app.crypto import (
 
 @pytest.fixture(autouse=True)
 def setup_crypto_keys():
-    """Configura llaves v1 y v2 válidas para cada test."""
+    """Configura llaves v1 y v2 válidas para cada test y restaura las originales al final."""
+    orig_keys = os.getenv("ENC_KEYS")
+    orig_current = os.getenv("ENC_KEY_CURRENT")
+
     key1_bytes = secrets.token_bytes(32)
     key2_bytes = secrets.token_bytes(32)
     k1_b64 = _b64url_encode(key1_bytes)
@@ -32,9 +35,11 @@ def setup_crypto_keys():
 
     enc_keys = f"v1:{k1_b64},v2:{k2_b64}"
     load_keys(enc_keys, "v2")
-    yield
-    # Restaurar
-    load_keys(enc_keys, "v2")
+    try:
+        yield
+    finally:
+        # Restaurar llaves operativas del entorno para no contaminar tests de integración
+        load_keys(orig_keys, orig_current)
 
 
 def test_ida_y_vuelta_texto_vacio_tildes_emojis():
@@ -160,50 +165,54 @@ def test_rotacion_llaves_v1_a_v2():
     k2_b64 = _b64url_encode(k2_bytes)
     anillo = f"v1:{k1_b64},v2:{k2_b64}"
 
-    # Paso 1: Sistema operando inicialmente con llave activa v1
-    load_keys(anillo, "v1")
-    assert get_current_kid() == "v1"
+    try:
+        # Paso 1: Sistema operando inicialmente con llave activa v1
+        load_keys(anillo, "v1")
+        assert get_current_kid() == "v1"
 
-    registros = [
-        ("Maria Gomez", "pacientes.nombre.p-001"),
-        ("Hipertensión Arterial Grado 2", "pacientes.diagnostico.p-001"),
-        ("Enalapril 10mg", "pacientes.medicacion.p-001"),
-        ("Juan Rodriguez", "pacientes.nombre.p-002"),
-        ("Diabetes Mellitus Tipo 2", "pacientes.diagnostico.p-002")
-    ]
+        registros = [
+            ("Maria Gomez", "pacientes.nombre.p-001"),
+            ("Hipertensión Arterial Grado 2", "pacientes.diagnostico.p-001"),
+            ("Enalapril 10mg", "pacientes.medicacion.p-001"),
+            ("Juan Rodriguez", "pacientes.nombre.p-002"),
+            ("Diabetes Mellitus Tipo 2", "pacientes.diagnostico.p-002")
+        ]
 
-    tokens_v1 = []
-    for texto, aad in registros:
-        tok = encrypt(texto, aad=aad)
-        assert tok.startswith("v1:")
-        tokens_v1.append(tok)
+        tokens_v1 = []
+        for texto, aad in registros:
+            tok = encrypt(texto, aad=aad)
+            assert tok.startswith("v1:")
+            tokens_v1.append(tok)
 
-    # Paso 2: Se activa la versión v2 como vigente (ENC_KEY_CURRENT=v2)
-    load_keys(anillo, "v2")
-    assert get_current_kid() == "v2"
+        # Paso 2: Se activa la versión v2 como vigente (ENC_KEY_CURRENT=v2)
+        load_keys(anillo, "v2")
+        assert get_current_kid() == "v2"
 
-    # En este estado previo a la rotación, las lecturas siguen funcionando a través del anillo
-    for (texto, aad), tok_v1 in zip(registros, tokens_v1):
-        assert decrypt(tok_v1, aad=aad) == texto
+        # En este estado previo a la rotación, las lecturas siguen funcionando a través del anillo
+        for (texto, aad), tok_v1 in zip(registros, tokens_v1):
+            assert decrypt(tok_v1, aad=aad) == texto
 
-    # Paso 3: Proceso de rotación (descifrar con versión histórica y re-cifrar con versión activa)
-    tokens_rotados = []
-    for tok_v1, (texto_original, aad) in zip(tokens_v1, registros):
-        # Descifrado usando el anillo histórico
-        texto_claro = decrypt(tok_v1, aad=aad)
-        assert texto_claro == texto_original
+        # Paso 3: Proceso de rotación (descifrar con versión histórica y re-cifrar con versión activa)
+        tokens_rotados = []
+        for tok_v1, (texto_original, aad) in zip(tokens_v1, registros):
+            # Descifrado usando el anillo histórico
+            texto_claro = decrypt(tok_v1, aad=aad)
+            assert texto_claro == texto_original
 
-        # Re-cifrado con la versión actual (v2)
-        nuevo_tok = encrypt(texto_claro, aad=aad)
-        assert nuevo_tok.startswith("v2:")
-        tokens_rotados.append(nuevo_tok)
+            # Re-cifrado con la versión actual (v2)
+            nuevo_tok = encrypt(texto_claro, aad=aad)
+            assert nuevo_tok.startswith("v2:")
+            tokens_rotados.append(nuevo_tok)
 
-    # Paso 4: Validar que todos los tokens rotados se leen con v2 y preservan los datos
-    for (texto_original, aad), tok_v2 in zip(registros, tokens_rotados):
-        assert tok_v2.startswith("v2:")
-        assert decrypt(tok_v2, aad=aad) == texto_original
+        # Paso 4: Validar que todos los tokens rotados se leen con v2 y preservan los datos
+        for (texto_original, aad), tok_v2 in zip(registros, tokens_rotados):
+            assert tok_v2.startswith("v2:")
+            assert decrypt(tok_v2, aad=aad) == texto_original
 
-    # Paso 5: Al retirar v1 del anillo operativo, los tokens rotados a v2 siguen descifrándose
-    load_keys(f"v2:{k2_b64}", "v2")
-    for (texto_original, aad), tok_v2 in zip(registros, tokens_rotados):
-        assert decrypt(tok_v2, aad=aad) == texto_original
+        # Paso 5: Al retirar v1 del anillo operativo, los tokens rotados a v2 siguen descifrándose
+        load_keys(f"v2:{k2_b64}", "v2")
+        for (texto_original, aad), tok_v2 in zip(registros, tokens_rotados):
+            assert decrypt(tok_v2, aad=aad) == texto_original
+    finally:
+        # Restaurar el keyring operativo original desde las variables de entorno
+        load_keys()

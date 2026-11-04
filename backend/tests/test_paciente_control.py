@@ -135,7 +135,18 @@ def data(client):
             }
         }
     finally:
-        session.close()
+        try:
+            session.delete(pac_a)
+            session.delete(pac_b)
+            session.delete(user_pac_a)
+            session.delete(user_pac_b)
+            session.delete(doc1)
+            session.delete(doc2)
+            session.commit()
+        except Exception:
+            session.rollback()
+        finally:
+            session.close()
 
 
 def test_paciente_puede_ver_su_propio_historial_y_consentimiento(client, data):
