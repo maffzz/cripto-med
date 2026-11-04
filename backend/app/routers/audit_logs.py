@@ -17,10 +17,14 @@ autorizado = Depends(require_role([RolEnum.admin, RolEnum.auditor]))
 
 class AuditLogResponse(BaseModel):
     id: UUID
+    seq: Optional[int] = None
+    hash_prev: Optional[str] = None
+    hash_actual: Optional[str] = None
     usuario_id: Optional[UUID] = None
     accion: str
     recurso: str
     ip_origen: Optional[str] = None
+    detalle: Optional[str] = None
     timestamp: datetime
 
     model_config = ConfigDict(from_attributes=True)

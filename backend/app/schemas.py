@@ -82,13 +82,17 @@ class AuditLogBase(BaseModel):
     accion: AccionEnum
     recurso: str
     ip_origen: Optional[str] = None
+    detalle: Optional[str] = None
 
 class AuditLogCreate(AuditLogBase):
-    usuario_id: UUID
+    usuario_id: Optional[UUID] = None
 
 class AuditLogResponse(AuditLogBase):
     id: UUID
-    usuario_id: UUID
+    seq: Optional[int] = None
+    hash_prev: Optional[str] = None
+    hash_actual: Optional[str] = None
+    usuario_id: Optional[UUID] = None
     timestamp: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 from datetime import datetime as dt
 
 from app.database import get_db
-from app.models import Paciente, RolEnum, Usuario, AccionEnum, AuditLog
+from app.models import Paciente, RolEnum, Usuario, AccionEnum
 from app.schemas import PacienteCreate, PacienteResponse, PacienteResponseBasico
 from app.rbac import require_role, get_current_user
-from app.crypto import encrypt, decrypt  # Importamos las funciones de cifrado
+from app.crypto import encrypt, decrypt
+from app.audit import log_action, extract_client_ip
 
 router = APIRouter(prefix="/pacientes", tags=["Pacientes"])
 
@@ -306,17 +307,16 @@ async def transferir_doctor(
     paciente.doctor_id = nuevo_doctor_id
     db.commit()
 
-    # Registrar en log de auditoría
-    log = AuditLog(
-        usuario_id=current_user.id,
+    # Registrar en log de auditoría encadenado con SHA-256
+    ip = extract_client_ip(request)
+    log_action(
+        db=db,
         accion=AccionEnum.transferencia,
         recurso=f"paciente:{paciente_id}",
-        detalle=f"doctor_anterior={doctor_anterior}, doctor_nuevo={nuevo_doctor_id}",
-        ip_origen=request.client.host if request.client else "127.0.0.1",
-        timestamp=dt.utcnow()
+        usuario_id=current_user.id,
+        ip_origen=ip,
+        detalle=f"doctor_anterior={doctor_anterior}, doctor_nuevo={nuevo_doctor_id}"
     )
-    db.add(log)
-    db.commit()
 
     return {
         "mensaje": "Paciente transferido correctamente",

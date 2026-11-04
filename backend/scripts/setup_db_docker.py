@@ -23,12 +23,32 @@ def crear_tablas():
         print("Tablas creadas exitosamente en PostgreSQL:")
         for table in Base.metadata.sorted_tables:
             print(f"  - {table.name}")
+        
+        # Aplicar triggers y permisos sobre audit_logs
+        aplicar_triggers_y_permisos(engine)
         return True
     except Exception as e:
         print(f"❌ Error al crear tablas: {e}")
         import traceback
         traceback.print_exc()
         return False
+
+def aplicar_triggers_y_permisos(engine):
+    print("\nAplicando triggers de inmutabilidad sobre audit_logs (NIST SP 800-92)...")
+    sql_path = Path(__file__).resolve().parent / "sql" / "proteger_audit_logs.sql"
+    if not sql_path.exists():
+        sql_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "sql" / "proteger_audit_logs.sql"
+
+    if sql_path.exists():
+        from sqlalchemy import text
+        with open(sql_path, "r", encoding="utf-8") as f:
+            sql_content = f.read()
+        with engine.connect() as conn:
+            conn.execute(text(sql_content))
+            conn.commit()
+        print("✅ Triggers y permisos de inmutabilidad aplicados exitosamente.")
+    else:
+        print(f"⚠️ Script SQL de protección no encontrado en {sql_path}")
 
 def main():
     if not crear_tablas():

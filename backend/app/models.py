@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Numeric, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Integer, BigInteger, Sequence, Boolean, DateTime, Numeric, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship # para definir relaciones entre modelos
 from sqlalchemy.dialects.postgresql import UUID
 import uuid as uuid_lib # libreria uuid para generar ids
@@ -117,12 +117,17 @@ class DiagnosticoCIE10(Base):
     pacientes = relationship("Paciente", back_populates="diagnostico_cie10_rel")
 
 
-# modelo de log de auditoria
+# modelo de log de auditoria verificable con cadena de hashes (NIST SP 800-92 / OWASP)
+audit_seq = Sequence("audit_logs_seq", start=1)
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4)
-    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+    seq = Column(BigInteger, audit_seq, server_default=audit_seq.next_value(), unique=True, index=True)
+    hash_prev = Column(String(64), nullable=False)
+    hash_actual = Column(String(64), nullable=False)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     accion = Column(SQLEnum(AccionEnum), nullable=False)
     recurso = Column(String, nullable=False) # ej: "paciente:uuid"
     timestamp = Column(DateTime, default=dt.utcnow, nullable=False)
