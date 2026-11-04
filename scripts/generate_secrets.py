@@ -25,9 +25,9 @@ def generate_postgres_password():
     return ''.join(secrets.choice(alphabet) for _ in range(16))
 
 def generate_demo_password():
-    """Genera una contraseña segura para usuarios de demo (sin $ para evitar interpolación de Docker Compose)."""
+    """Genera una contraseña segura para usuarios de demo cumpliendo NIST SP 800-63B (16 caracteres, alta entropía)."""
     alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%*_-+"
-    return ''.join(secrets.choice(alphabet) for _ in range(12))
+    return ''.join(secrets.choice(alphabet) for _ in range(16))
 
 def generate_passphrase():
     """Genera una passphrase para backups."""

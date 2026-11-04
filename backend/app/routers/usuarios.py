@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Usuario, RolEnum
 from app.schemas import UsuarioCreate, UsuarioResponse
-from app.auth import get_password_hash
+from app.auth import get_password_hash, validate_password_policy
 from app.rbac import require_role
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
@@ -26,6 +26,19 @@ def crear_usuario(usuario_in: UsuarioCreate, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El correo electrónico ya se encuentra registrado."
+        )
+
+    # Validar política de contraseñas NIST SP 800-63B / OWASP
+    try:
+        validate_password_policy(
+            password=usuario_in.password,
+            email=usuario_in.email,
+            nombre=usuario_in.nombre
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
 
     nuevo_usuario = Usuario(

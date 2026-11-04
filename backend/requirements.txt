@@ -12,3 +12,4 @@ email-validator==2.3.0 # validación de email
 pytest==9.1.1 # framework de pruebas
 httpx==0.27.0 # cliente HTTP para pruebas
 slowapi==0.1.9 # rate limiting para endpoints sensibles (OWASP)
+zxcvbn==4.4.28 # evaluador de entropía de contraseñas (NIST SP 800-63B / OWASP)

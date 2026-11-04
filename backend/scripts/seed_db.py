@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Usuario, Paciente, DiagnosticoCIE10, RolEnum
 from app.crypto import encrypt, decrypt
-from app.auth import get_password_hash
+from app.auth import get_password_hash, validate_password_policy
 
 
 def buscar_archivo_datos(nombre: str) -> Path:
@@ -170,25 +170,25 @@ def crear_usuarios_iniciales(db: Session) -> int:
         {
             "nombre": "Admin Sistema",
             "email": "admin@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_ADMIN", "admin123"),
+            "password": os.getenv("DEMO_PASSWORD_ADMIN", "Admin_CriptoMed_2026!"),
             "rol": RolEnum.admin
         },
         {
             "nombre": "Dr. Juan Perez",
             "email": "doctor@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "doctor123"),
+            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "Doctor_CriptoMed_2026!"),
             "rol": RolEnum.doctor
         },
         {
             "nombre": "Maria Lopez",
             "email": "admin@clinica.com",
-            "password": os.getenv("DEMO_PASSWORD_ADMINISTRATIVO", "admin123"),
+            "password": os.getenv("DEMO_PASSWORD_ADMINISTRATIVO", "Admini_CriptoMed_2026!"),
             "rol": RolEnum.administrativo
         },
         {
             "nombre": "Auditor Externo",
             "email": "auditor@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_AUDITOR", "auditor123"),
+            "password": os.getenv("DEMO_PASSWORD_AUDITOR", "Auditor_CriptoMed_2026!"),
             "rol": RolEnum.auditor
         }
     ]
@@ -198,10 +198,14 @@ def crear_usuarios_iniciales(db: Session) -> int:
         existe = db.query(Usuario).filter(Usuario.email == udata["email"]).first()
         if existe:
             continue
+        
+        pwd = udata["password"]
+        validate_password_policy(pwd, email=udata["email"], nombre=udata["nombre"])
+        
         usuario = Usuario(
             nombre=udata["nombre"],
             email=udata["email"],
-            password_hash=get_password_hash(udata["password"]),
+            password_hash=get_password_hash(pwd),
             rol=udata["rol"],
             activo=True
         )
