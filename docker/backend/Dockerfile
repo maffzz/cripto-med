@@ -15,9 +15,10 @@ COPY backend/requirements.txt .
 # Instalar dependencias Python sin cache (globalmente para root y app)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código de aplicación
+# Copiar código de aplicación, scripts y pruebas
 COPY backend/app ./app
 COPY backend/scripts ./scripts
+COPY backend/tests ./tests
 
 # Crear usuario no root
 RUN groupadd -g 10001 app && \

@@ -110,8 +110,11 @@ def test_pacientes(db, test_users):
     """Fixture para crear pacientes de prueba."""
     from app.crypto import encrypt
     
+    id_asignado = uuid4()
+    pid1 = str(id_asignado)
     # Paciente asignado al doctor (sin código_cie10 para evitar foreign key constraint)
     paciente_asignado = Paciente(
+        id=id_asignado,
         edad=30,
         genero="F",
         tipo_sangre="O+",
@@ -123,11 +126,11 @@ def test_pacientes(db, test_users):
         tipo_admision="Urgencia",
         fecha_alta=None,
         doctor_id=test_users["doctor"].id,
-        nombre=encrypt("Maria Test"),
-        diagnostico=encrypt("Gripe estomacal"),
-        monto_facturado=encrypt("1500.00"),
-        medicacion=encrypt("Paracetamol 500mg"),
-        resultado_test=encrypt("Negativo")
+        nombre=encrypt("Maria Test", aad=f"pacientes.nombre.{pid1}"),
+        diagnostico=encrypt("Gripe estomacal", aad=f"pacientes.diagnostico.{pid1}"),
+        monto_facturado=encrypt("1500.00", aad=f"pacientes.monto_facturado.{pid1}"),
+        medicacion=encrypt("Paracetamol 500mg", aad=f"pacientes.medicacion.{pid1}"),
+        resultado_test=encrypt("Negativo", aad=f"pacientes.resultado_test.{pid1}")
     )
     db.add(paciente_asignado)
     db.commit()
@@ -145,7 +148,10 @@ def test_pacientes(db, test_users):
     db.commit()
     db.refresh(otro_doctor)
     
+    id_no_asignado = uuid4()
+    pid2 = str(id_no_asignado)
     paciente_no_asignado = Paciente(
+        id=id_no_asignado,
         edad=40,
         genero="M",
         tipo_sangre="A+",
@@ -157,11 +163,11 @@ def test_pacientes(db, test_users):
         tipo_admision="Programado",
         fecha_alta=None,
         doctor_id=otro_doctor.id,
-        nombre=encrypt("Juan Test"),
-        diagnostico=encrypt("Neumonia"),
-        monto_facturado=encrypt("2000.00"),
-        medicacion=encrypt("Antibiotico"),
-        resultado_test=encrypt("Positivo")
+        nombre=encrypt("Juan Test", aad=f"pacientes.nombre.{pid2}"),
+        diagnostico=encrypt("Neumonia", aad=f"pacientes.diagnostico.{pid2}"),
+        monto_facturado=encrypt("2000.00", aad=f"pacientes.monto_facturado.{pid2}"),
+        medicacion=encrypt("Antibiotico", aad=f"pacientes.medicacion.{pid2}"),
+        resultado_test=encrypt("Positivo", aad=f"pacientes.resultado_test.{pid2}")
     )
     db.add(paciente_no_asignado)
     db.commit()

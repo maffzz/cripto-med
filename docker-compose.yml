@@ -51,7 +51,6 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       ENC_KEYS: ${ENC_KEYS}
       ENC_KEY_CURRENT: ${ENC_KEY_CURRENT}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
@@ -68,6 +67,10 @@ services:
     networks:
       - app_net
       - db_net
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/scripts:/app/scripts:ro
+      - ./backend/tests:/app/tests:ro
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -127,6 +130,10 @@ services:
         condition: service_healthy
     networks:
       - db_net
+    volumes:
+      - ./data:/app/data:ro
+      - ./backend/scripts:/app/scripts:ro
+      - ./backend/app:/app/app:ro
     # Init corre como root para tener acceso a las dependencias instaladas
     user: "0:0"
     command: >

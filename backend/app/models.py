@@ -71,41 +71,41 @@ class Paciente(Base):
     usuario = relationship("Usuario", foreign_keys=[usuario_id])
     diagnostico_cie10_rel = relationship("DiagnosticoCIE10", back_populates="pacientes")
 
-    # Propiedades para cifrado/descifrado de campos sensibles
+    # Propiedades para cifrado/descifrado de campos sensibles con AAD (NIST SP 800-38D)
     @property
     def nombre_descifrado(self) -> str:
-        return decrypt(self.nombre)
+        return decrypt(self.nombre, aad=f"pacientes.nombre.{self.id}") if self.nombre else ""
     @nombre_descifrado.setter
     def nombre_descifrado(self, valor: str):
-        self.nombre = encrypt(valor)
+        self.nombre = encrypt(valor, aad=f"pacientes.nombre.{self.id}") if valor else ""
 
     @property
     def diagnostico_descifrado(self) -> str:
-        return decrypt(self.diagnostico)
+        return decrypt(self.diagnostico, aad=f"pacientes.diagnostico.{self.id}") if self.diagnostico else None
     @diagnostico_descifrado.setter
     def diagnostico_descifrado(self, valor: str):
-        self.diagnostico = encrypt(valor)
+        self.diagnostico = encrypt(valor, aad=f"pacientes.diagnostico.{self.id}") if valor else None
 
     @property
     def monto_facturado_descifrado(self) -> str:
-        return decrypt(self.monto_facturado)
+        return decrypt(self.monto_facturado, aad=f"pacientes.monto_facturado.{self.id}") if self.monto_facturado else None
     @monto_facturado_descifrado.setter
     def monto_facturado_descifrado(self, valor: str):
-        self.monto_facturado = encrypt(valor)
+        self.monto_facturado = encrypt(valor, aad=f"pacientes.monto_facturado.{self.id}") if valor else None
 
     @property
     def medicacion_descifrado(self) -> str:
-        return decrypt(self.medicacion)
+        return decrypt(self.medicacion, aad=f"pacientes.medicacion.{self.id}") if self.medicacion else None
     @medicacion_descifrado.setter
     def medicacion_descifrado(self, valor: str):
-        self.medicacion = encrypt(valor)
+        self.medicacion = encrypt(valor, aad=f"pacientes.medicacion.{self.id}") if valor else None
 
     @property
     def resultado_test_descifrado(self) -> str:
-        return decrypt(self.resultado_test)
+        return decrypt(self.resultado_test, aad=f"pacientes.resultado_test.{self.id}") if self.resultado_test else None
     @resultado_test_descifrado.setter
     def resultado_test_descifrado(self, valor: str):
-        self.resultado_test = encrypt(valor)
+        self.resultado_test = encrypt(valor, aad=f"pacientes.resultado_test.{self.id}") if valor else None
 
 # modelo de diagnostico cie10
 class DiagnosticoCIE10(Base):

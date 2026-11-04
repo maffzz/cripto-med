@@ -1,5 +1,5 @@
 from typing import List, Union
-from uuid import UUID
+from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from datetime import datetime as dt
@@ -18,13 +18,14 @@ autorizado_lista = Depends(require_role([RolEnum.admin, RolEnum.doctor, RolEnum.
 # Acceso permitido para editar (admin, doctor, administrativo)
 autorizado_edicion = Depends(require_role([RolEnum.admin, RolEnum.doctor, RolEnum.administrativo]))
 
-def formatear_paciente_respuesta(p: Paciente, usuario: Usuario) -> dict:
+def formatear_paciente_respuesta(p: Paciente, usuario: Usuario = None) -> dict:
     """Helper para mapear el modelo de BD (cifrado) al esquema de respuesta (descifrado)
     Filtra campos según el rol del usuario."""
+    pid = str(p.id)
     
     # Datos básicos comunes a todos los roles
     datos = {
-        "id": str(p.id),
+        "id": pid,
         "edad": p.edad,
         "genero": p.genero,
         "tipo_sangre": p.tipo_sangre,
@@ -36,19 +37,19 @@ def formatear_paciente_respuesta(p: Paciente, usuario: Usuario) -> dict:
         "tipo_admision": p.tipo_admision,
         "fecha_alta": p.fecha_alta.isoformat() if p.fecha_alta else None,
         "doctor_id": str(p.doctor_id) if p.doctor_id else None,
-        "nombre_descifrado": decrypt(p.nombre) if p.nombre else "",
-        "monto_facturado_descifrado": decrypt(p.monto_facturado) if p.monto_facturado else None,
+        "nombre_descifrado": decrypt(p.nombre, aad=f"pacientes.nombre.{pid}") if p.nombre else "",
+        "monto_facturado_descifrado": decrypt(p.monto_facturado, aad=f"pacientes.monto_facturado.{pid}") if p.monto_facturado else None,
     }
     
     # Administrativo: NO ve diagnóstico, medicación, resultado_test
-    if usuario.rol == RolEnum.administrativo:
+    if usuario and usuario.rol == RolEnum.administrativo:
         return datos
     
-    # Admin y Doctor: ven todos los campos
+    # Admin y Doctor (o sin usuario especificado): ven todos los campos
     datos.update({
-        "diagnostico_descifrado": decrypt(p.diagnostico) if p.diagnostico else None,
-        "medicacion_descifrado": decrypt(p.medicacion) if p.medicacion else None,
-        "resultado_test_descifrado": decrypt(p.resultado_test) if p.resultado_test else None,
+        "diagnostico_descifrado": decrypt(p.diagnostico, aad=f"pacientes.diagnostico.{pid}") if p.diagnostico else None,
+        "medicacion_descifrado": decrypt(p.medicacion, aad=f"pacientes.medicacion.{pid}") if p.medicacion else None,
+        "resultado_test_descifrado": decrypt(p.resultado_test, aad=f"pacientes.resultado_test.{pid}") if p.resultado_test else None,
     })
     
     return datos
@@ -146,7 +147,11 @@ def obtener_paciente(paciente_id: UUID, current_user: Usuario = Depends(get_curr
 @router.post("", status_code=status.HTTP_201_CREATED, dependencies=[autorizado_lista])
 def crear_paciente(paciente_in: PacienteCreate, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
     """Registra un nuevo paciente cifrando sus datos sensibles antes de guardarlos en PostgreSQL."""
+    nuevo_id = uuid4()
+    pid = str(nuevo_id)
+
     nuevo_paciente = Paciente(
+        id=nuevo_id,
         edad=paciente_in.edad,
         genero=paciente_in.genero,
         tipo_sangre=paciente_in.tipo_sangre,
@@ -157,12 +162,12 @@ def crear_paciente(paciente_in: PacienteCreate, current_user: Usuario = Depends(
         numero_habitacion=paciente_in.numero_habitacion,
         tipo_admision=paciente_in.tipo_admision,
         fecha_alta=paciente_in.fecha_alta,
-        # Ciframos los campos sensibles usando encrypt() antes de persistir
-        nombre=encrypt(paciente_in.nombre_descifrado),
-        diagnostico=encrypt(paciente_in.diagnostico_descifrado) if paciente_in.diagnostico_descifrado else None,
-        monto_facturado=encrypt(paciente_in.monto_facturado_descifrado) if paciente_in.monto_facturado_descifrado else None,
-        medicacion=encrypt(paciente_in.medicacion_descifrado) if paciente_in.medicacion_descifrado else None,
-        resultado_test=encrypt(paciente_in.resultado_test_descifrado) if paciente_in.resultado_test_descifrado else None,
+        # Ciframos los campos sensibles usando encrypt() con AAD vinculado al ID del paciente
+        nombre=encrypt(paciente_in.nombre_descifrado, aad=f"pacientes.nombre.{pid}"),
+        diagnostico=encrypt(paciente_in.diagnostico_descifrado, aad=f"pacientes.diagnostico.{pid}") if paciente_in.diagnostico_descifrado else None,
+        monto_facturado=encrypt(paciente_in.monto_facturado_descifrado, aad=f"pacientes.monto_facturado.{pid}") if paciente_in.monto_facturado_descifrado else None,
+        medicacion=encrypt(paciente_in.medicacion_descifrado, aad=f"pacientes.medicacion.{pid}") if paciente_in.medicacion_descifrado else None,
+        resultado_test=encrypt(paciente_in.resultado_test_descifrado, aad=f"pacientes.resultado_test.{pid}") if paciente_in.resultado_test_descifrado else None,
     )
     
     db.add(nuevo_paciente)
@@ -174,7 +179,7 @@ def crear_paciente(paciente_in: PacienteCreate, current_user: Usuario = Depends(
 
 
 @router.put("/{paciente_id}", response_model=PacienteResponse, dependencies=[autorizado_edicion])
-def editar_paciente(paciente_id: UUID, paciente_in: PacienteCreate, db: Session = Depends(get_db)):
+def editar_paciente(paciente_id: UUID, paciente_in: PacienteCreate, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
     """Edita un paciente existente."""
     paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
     if not paciente:
@@ -183,17 +188,18 @@ def editar_paciente(paciente_id: UUID, paciente_in: PacienteCreate, db: Session 
             detail="Paciente no encontrado."
         )
     
-    # Actualizar campos (encriptar si son sensibles)
+    pid = str(paciente.id)
+    # Actualizar campos (encriptar con AAD si son sensibles)
     if paciente_in.nombre_descifrado:
-        paciente.nombre = encrypt(paciente_in.nombre_descifrado)
+        paciente.nombre = encrypt(paciente_in.nombre_descifrado, aad=f"pacientes.nombre.{pid}")
     if paciente_in.diagnostico_descifrado:
-        paciente.diagnostico = encrypt(paciente_in.diagnostico_descifrado)
+        paciente.diagnostico = encrypt(paciente_in.diagnostico_descifrado, aad=f"pacientes.diagnostico.{pid}")
     if paciente_in.monto_facturado_descifrado:
-        paciente.monto_facturado = encrypt(paciente_in.monto_facturado_descifrado)
+        paciente.monto_facturado = encrypt(paciente_in.monto_facturado_descifrado, aad=f"pacientes.monto_facturado.{pid}")
     if paciente_in.medicacion_descifrado:
-        paciente.medicacion = encrypt(paciente_in.medicacion_descifrado)
+        paciente.medicacion = encrypt(paciente_in.medicacion_descifrado, aad=f"pacientes.medicacion.{pid}")
     if paciente_in.resultado_test_descifrado:
-        paciente.resultado_test = encrypt(paciente_in.resultado_test_descifrado)
+        paciente.resultado_test = encrypt(paciente_in.resultado_test_descifrado, aad=f"pacientes.resultado_test.{pid}")
     
     # Actualizar campos no sensibles
     if paciente_in.edad:
@@ -220,7 +226,7 @@ def editar_paciente(paciente_id: UUID, paciente_in: PacienteCreate, db: Session 
     db.commit()
     db.refresh(paciente)
     
-    return formatear_paciente_respuesta(paciente)
+    return formatear_paciente_respuesta(paciente, current_user)
 
 
 @router.delete("/{paciente_id}", dependencies=[Depends(require_role([RolEnum.admin]))])

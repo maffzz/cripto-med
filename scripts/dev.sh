@@ -118,7 +118,7 @@ cmd_test() {
     ensure_env
     info "Ejecutando pruebas pytest en el contenedor backend..."
     cd "$PROJECT_ROOT"
-    $COMPOSE run --rm backend pytest tests/ -v
+    $COMPOSE run --rm backend pytest tests/ -v -p no:cacheprovider
 }
 
 # Subcomando: shell-db
