@@ -27,7 +27,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # 5. Content Security Policy estricta para la API
         response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
 
-        # 6. Cache-Control: no-store para endpoints con datos sensibles de salud (HIPAA / OWASP)
+        # 6. Cross-Origin-Resource-Policy (CORP) para aislamiento de recursos API (OWASP ZAP / SEC-ZAP-01)
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+
+        # 7. Cache-Control: no-store para endpoints con datos sensibles de salud (HIPAA / OWASP)
         if request.url.path.startswith("/pacientes"):
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
             response.headers["Pragma"] = "no-cache"

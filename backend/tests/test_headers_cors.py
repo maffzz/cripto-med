@@ -44,6 +44,9 @@ def test_cabeceras_de_seguridad_presentes(client):
     assert "default-src 'none'" in headers.get("content-security-policy", "")
     assert "frame-ancestors 'none'" in headers.get("content-security-policy", "")
 
+    # 6. Cross-Origin-Resource-Policy (CORP) para aislamiento OWASP / ZAP
+    assert headers.get("cross-origin-resource-policy") == "same-origin"
+
 
 def test_cache_control_no_store_en_pacientes(client):
     """Verifica que las rutas de pacientes incluyan Cache-Control: no-store (HIPAA / OWASP)."""
