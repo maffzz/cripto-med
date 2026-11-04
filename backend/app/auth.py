@@ -77,10 +77,10 @@ def get_password_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
 
 
-# --- Funciones para JWT ---
+# --- Funciones para JWT (RFC 7519, RFC 8725) ---
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Genera un token JWT firmado con expiración."""
+    """Genera un token JWT firmado con algoritmo HS256 y expiración corta."""
     to_encode = data.copy()
     
     if expires_delta:
@@ -89,14 +89,21 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.now(timezone.utc) + timedelta(minutes=int(JWT_EXPIRE_MINUTES))
         
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
     return encoded_jwt
 
 
-# --- Dependencia de Autenticación de Endpoints ---
+# --- Dependencia de Autenticación de Endpoints (RFC 8725 / Revocación Inmediata) ---
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Usuario:
-    """Valida el token Bearer y retorna el usuario autenticado actual."""
+    """
+    Valida el token Bearer y retorna el usuario autenticado actual.
+    Aplica controles RFC 8725:
+    - Validación explícita de algoritmo: únicamente 'HS256' permitido.
+    - Exigencia estricta de claims 'exp' y 'sub'.
+    - Consulta en tiempo real a la BD: revocación de acceso inmediata si activo=False.
+    - Bloqueo inmediato si la cuenta se encuentra suspendida o bloqueada temporalmente.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="No se pudieron validar las credenciales de acceso.",
@@ -104,23 +111,51 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     
     try:
-        # Decodifica el token usando la clave secreta y algoritmo configurado
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        # RFC 8725 Secciones 3.1 y 3.2: Algoritmo explícito (rechaza 'none', 'HS512', RSA confusion)
+        payload = jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_exp": True}
+        )
+        email: Optional[str] = payload.get("sub")
+        exp: Optional[int] = payload.get("exp")
+        
+        # RFC 8725 Sección 3.3: Exigir obligatoriamente 'sub' y 'exp'
+        if not email or exp is None:
             raise credentials_exception
+            
     except JWTError:
         raise credentials_exception
 
-    # Busca al usuario en la base de datos
+    # Consulta a la BD en tiempo real en cada petición (revocación inmediata de sesión)
     user = db.query(Usuario).filter(Usuario.email == email).first()
     if user is None:
         raise credentials_exception
         
+    # Verificar si el usuario ha sido revocado o desactivado
     if not user.activo:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Usuario inactivo en el sistema."
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Acceso denegado: cuenta inactiva o revocada.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Verificar si el usuario está bloqueado temporalmente por intentos fallidos
+    now = datetime.now(timezone.utc)
+    bloqueado = user.bloqueado_hasta
+    if bloqueado:
+        if bloqueado.tzinfo is None:
+            bloqueado = bloqueado.replace(tzinfo=timezone.utc)
+        if bloqueado > now:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acceso denegado: cuenta bloqueada temporalmente por seguridad.",
+            )
+        else:
+            # Desbloqueo automático al vencer el período de castigo
+            user.intentos_fallidos = 0
+            user.bloqueado_hasta = None
+            db.commit()
         
     return user

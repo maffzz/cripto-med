@@ -13,7 +13,7 @@ def _env(name: str, default: str) -> str:
 DATABASE_URL = _env("DATABASE_URL", "sqlite:///./criptomed.db")
 JWT_SECRET = _env("JWT_SECRET", "cambiar-en-local")
 JWT_ALGORITHM = _env("JWT_ALGORITHM", "HS256")
-JWT_EXPIRE_MINUTES = int(_env("JWT_EXPIRE_MINUTES", "30"))
+JWT_EXPIRE_MINUTES = int(_env("JWT_EXPIRE_MINUTES", "15"))
 
 # Cifrado AES-256-GCM (NIST SP 800-38D / FIPS 197)
 ENC_KEYS = _env("ENC_KEYS", "")

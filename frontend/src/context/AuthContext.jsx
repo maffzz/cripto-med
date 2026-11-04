@@ -73,6 +73,34 @@ export const AuthProvider = ({ children }) => { // proveedor del contexto
     delete axios.defaults.headers.common['Authorization']; // elimina header de autorizacion
   };
 
+  // Temporizador de inactividad de 15 minutos (NIST SP 800-63B / OWASP Session Management)
+  const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+
+  useEffect(() => {
+    if (!token) return;
+
+    let timer = null;
+
+    const resetTimer = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        console.warn('Sesión expirada por inactividad de 15 minutos.');
+        logout();
+        window.location.href = '/';
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(evt => window.addEventListener(evt, resetTimer, { passive: true }));
+
+    resetTimer();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      events.forEach(evt => window.removeEventListener(evt, resetTimer));
+    };
+  }, [token]);
+
   return ( // retorna el proveedor del contexto
     <AuthContext.Provider value={{ user, loading, login, logout, token }}>
       {children}
