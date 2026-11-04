@@ -1,0 +1,8 @@
+# docker-compose.scan.yml
+# Sobrescribe temporalmente el entorno para escaneo de seguridad DAST (OWASP ZAP)
+# Habilita /openapi.json en el contenedor backend para que ZAP API Scan pueda analizar las rutas
+
+services:
+  backend:
+    environment:
+      ENV: development
