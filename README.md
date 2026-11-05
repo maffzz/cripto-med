@@ -74,83 +74,88 @@ graph TB
 ## Modelo de datos
 
 **`usuarios`**
-|| Campo | Tipo | Notas |
-||---|---|---|
-|| id | UUID / PK | |
-|| nombre | string | |
-|| email | string, único | |
-|| password_hash | string | bcrypt (factor 12) |
-|| rol | enum | `admin`, `doctor`, `administrativo`, `auditor`, `paciente` |
-|| activo | boolean | para revocación inmediata de accesos |
-|| intentos_fallidos | integer | contador para bloqueo por fuerza bruta |
-|| bloqueado_hasta | datetime | timestamp de fin de bloqueo temporal |
-|| creado_en | timestamp | |
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | UUID / PK | |
+| nombre | string | |
+| email | string, único | |
+| password_hash | string | bcrypt (factor 12) |
+| rol | enum | `admin`, `doctor`, `administrativo`, `auditor`, `paciente` |
+| activo | boolean | para revocación inmediata de accesos |
+| intentos_fallidos | integer | contador para bloqueo por fuerza bruta |
+| bloqueado_hasta | datetime | timestamp de fin de bloqueo temporal |
+| creado_en | timestamp | |
 
 **`pacientes`**
-|| Campo | Tipo | Notas |
-||---|---|---|
-|| id | UUID / PK | |
-|| nombre | string (cifrado AES-256-GCM) | AAD: pacientes.nombre.{id} |
-|| edad | integer | |
-|| genero | string | |
-|| tipo_sangre | string | |
-|| diagnostico | string (cifrado AES-256-GCM) | AAD: pacientes.diagnostico.{id} |
-|| codigo_cie10 | string, FK → diagnosticos_cie10 | |
-|| fecha_admision | datetime | |
-|| doctor_id | UUID, FK → usuarios | médico asignado |
-|| usuario_id | UUID, FK → usuarios (opcional) | cuenta de login del paciente |
-|| hospital | string | |
-|| proveedor_seguro | string | |
-|| monto_facturado | string (cifrado AES-256-GCM) | AAD: pacientes.monto_facturado.{id} |
-|| numero_habitacion | string | |
-|| tipo_admision | string | |
-|| fecha_alta | datetime | |
-|| medicacion | string (cifrado AES-256-GCM) | AAD: pacientes.medicacion.{id} |
-|| resultado_test | string (cifrado AES-256-GCM) | AAD: pacientes.resultado_test.{id} |
-|| consentimiento_fecha | datetime | fecha de consentimiento informado |
-|| consentimiento_version | string | versión del documento de consentimiento |
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | UUID / PK | |
+| nombre | string (cifrado AES-256-GCM) | AAD: pacientes.nombre.{id} |
+| edad | integer | |
+| genero | string | |
+| tipo_sangre | string | |
+| diagnostico | string (cifrado AES-256-GCM) | AAD: pacientes.diagnostico.{id} |
+| codigo_cie10 | string, FK → diagnosticos_cie10 | |
+| fecha_admision | datetime | |
+| doctor_id | UUID, FK → usuarios | médico asignado |
+| usuario_id | UUID, FK → usuarios (opcional) | cuenta de login del paciente |
+| hospital | string | |
+| proveedor_seguro | string | |
+| monto_facturado | string (cifrado AES-256-GCM) | AAD: pacientes.monto_facturado.{id} |
+| numero_habitacion | string | |
+| tipo_admision | string | |
+| fecha_alta | datetime | |
+| medicacion | string (cifrado AES-256-GCM) | AAD: pacientes.medicacion.{id} |
+| resultado_test | string (cifrado AES-256-GCM) | AAD: pacientes.resultado_test.{id} |
+| consentimiento_fecha | datetime | fecha de consentimiento informado |
+| consentimiento_version | string | versión del documento de consentimiento |
 
 **`diagnosticos_cie10`**
-|| Campo | Tipo |
-||---|---|
-|| codigo | string / PK |
-|| descripcion | string |
+
+| Campo | Tipo |
+|---|---|
+| codigo | string / PK |
+| descripcion | string |
 
 **`audit_logs`** *(inmutable, cadena SHA-256, solo INSERT/SELECT para rol de aplicación)*
-|| Campo | Tipo | Notas |
-||---|---|---|
-|| id | UUID / PK | |
-|| seq | BigInteger (autoincremental, único) | para orden cronológico |
-|| hash_prev | string (64) | hash SHA-256 del registro anterior |
-|| hash_actual | string (64) | hash SHA-256 del registro actual |
-|| usuario_id | UUID, FK → usuarios (nullable) | |
-|| accion | enum | `login`, `login_fallido`, `bloqueo`, `lectura`, `edicion`, `borrado`, `transferencia`, `exportacion`, `acceso_emergencia` |
-|| recurso | string | ej. `paciente:UUID` |
-|| timestamp | datetime | UTC |
-|| ip_origen | string | |
-|| detalle | string (nullable) | detalle adicional |
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | UUID / PK | |
+| seq | BigInteger (autoincremental, único) | para orden cronológico |
+| hash_prev | string (64) | hash SHA-256 del registro anterior |
+| hash_actual | string (64) | hash SHA-256 del registro actual |
+| usuario_id | UUID, FK → usuarios (nullable) | |
+| accion | enum | `login`, `login_fallido`, `bloqueo`, `lectura`, `edicion`, `borrado`, `transferencia`, `exportacion`, `acceso_emergencia` |
+| recurso | string | ej. `paciente:UUID` |
+| timestamp | datetime | UTC |
+| ip_origen | string | |
+| detalle | string (nullable) | detalle adicional |
 
 **`accesos_emergencia`** *(break-glass)*
-|| Campo | Tipo | Notas |
-||---|---|---|
-|| id | UUID / PK | |
-|| paciente_id | UUID, FK → pacientes | |
-|| doctor_id | UUID, FK → usuarios | |
-|| justificacion | string | mínimo 20 caracteres |
-|| otorgado_en | datetime | |
-|| expira_en | datetime | ventana de 30 minutos |
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | UUID / PK | |
+| paciente_id | UUID, FK → pacientes | |
+| doctor_id | UUID, FK → usuarios | |
+| justificacion | string | mínimo 20 caracteres |
+| otorgado_en | datetime | |
+| expira_en | datetime | ventana de 30 minutos |
 
 ---
 
 ## Roles y permisos
 
-|| Rol | Login | Ver pacientes | Ver diagnóstico | Editar pacientes | Gestionar usuarios | Ver audit logs |
-||---|---|---|---|---|---|---|
-|| **Administrador** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-|| **Doctor** | ✅ | ✅ (asignados) | ✅ (asignados) | ✅ (asignados) | ❌ | ❌ |
-|| **Administrativo** | ✅ | ✅ (datos básicos) | ❌ | ✅ (admisión/facturación) | ❌ | ❌ |
-|| **Auditor** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ (solo lectura) |
-|| **Paciente** | ✅ | ✅ (propio) | ✅ (propio) | ❌ | ❌ | ❌ (solo accesos propios) |
+| Rol | Login | Ver pacientes | Ver diagnóstico | Editar pacientes | Gestionar usuarios | Ver audit logs |
+|---|---|---|---|---|---|---|
+| **Administrador** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Doctor** | ✅ | ✅ (asignados) | ✅ (asignados) | ✅ (asignados) | ❌ | ❌ |
+| **Administrativo** | ✅ | ✅ (datos básicos) | ❌ | ✅ (admisión/facturación) | ❌ | ❌ |
+| **Auditor** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ (solo lectura) |
+| **Paciente** | ✅ | ✅ (propio) | ✅ (propio) | ❌ | ❌ | ❌ (solo accesos propios) |
 
 **Nota:** El rol administrativo NO ve diagnóstico, medicación ni resultado_test (Paso 0.3). El rol paciente puede ver sus accesos y exportar sus datos (Paso 1.7).
 
@@ -158,23 +163,23 @@ graph TB
 
 ## Seguridad
 
-|| Medida | Implementación | Estándar |
-||---|---|---|
-|| Cifrado en reposo | AES-256-GCM con llaves versionadas (v1, v2) y AAD sobre campos sensibles (nombre, diagnóstico, medicación, resultado_test, monto_facturado) | FIPS 197, NIST SP 800-38D |
-|| Cifrado en tránsito | TLS 1.3 exclusivo en edge Nginx, certificado autofirmado (OpenSSL) | RFC 8446, NIST SP 800-52 Rev. 2 |
-|| Hashing de contraseñas | bcrypt factor 12, política NIST SP 800-63B (sin composición obligatoria, sin expiración periódica) | OWASP Password Storage Cheat Sheet, NIST SP 800-63B |
-|| Autenticación | JWT HS256 con expiración 30 min, verificación de activo y bloqueado_hasta en cada request | RFC 7519, RFC 8725 |
-|| Autorización | RBAC (5 roles), principio de mínimo privilegio, filtrado en backend (no solo frontend) | NIST SP 800-63B, OWASP ASVS |
-|| Auditoría | Logs inmutables con cadena SHA-256, pg_advisory_xact_lock, triggers anti-UPDATE/DELETE, rol de aplicación con solo INSERT/SELECT | NIST SP 800-92, OWASP Logging Cheat Sheet |
-|| Bloqueo por fuerza bruta | Bloqueo tras 5 intentos fallidos (15 min), rate limiting 10 req/min por IP (slowapi) | NIST SP 800-63B |
-|| Usuario no root | Contenedores backend e init corren como UID 10001 | CIS Docker Benchmark 4.1 |
-|| Capabilities mínimas | `cap_drop: ALL` + `cap_add` de solo las necesarias (NET_BIND_SERVICE, CHOWN, etc.) | CIS Docker Benchmark 5.26 |
-|| No secretos en imágenes | Variables de entorno vía docker-compose.yml, no COPY de .env, certificados en volumen de solo lectura | CIS Docker Benchmark 4.1, OWASP ASVS V7.2.1 |
-|| Healthchecks | pg_isready (db), /health endpoint (backend) | CIS Docker Benchmark 6.1 |
-|| Límites de recursos | mem_limit y pids_limit configurados en docker-compose.yml | CIS Docker Benchmark 5.17 |
-|| Filesystem read-only | Backend e init con read_only: true, tmpfs para /tmp | CIS Docker Benchmark 5.15 |
-|| Redes internas | db_net: internal (solo backend accede a PostgreSQL) | CIS Docker Benchmark 5.8 |
-|| Cabeceras de seguridad | HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, CSP, Cross-Origin-Resource-Policy | OWASP ASVS V7 |
+| Medida | Implementación | Estándar |
+|---|---|---|
+| Cifrado en reposo | AES-256-GCM con llaves versionadas (v1, v2) y AAD sobre campos sensibles (nombre, diagnóstico, medicación, resultado_test, monto_facturado) | FIPS 197, NIST SP 800-38D |
+| Cifrado en tránsito | TLS 1.3 exclusivo en edge Nginx, certificado autofirmado (OpenSSL) | RFC 8446, NIST SP 800-52 Rev. 2 |
+| Hashing de contraseñas | bcrypt factor 12, política NIST SP 800-63B (sin composición obligatoria, sin expiración periódica) | OWASP Password Storage Cheat Sheet, NIST SP 800-63B |
+| Autenticación | JWT HS256 con expiración 30 min, verificación de activo y bloqueado_hasta en cada request | RFC 7519, RFC 8725 |
+| Autorización | RBAC (5 roles), principio de mínimo privilegio, filtrado en backend (no solo frontend) | NIST SP 800-63B, OWASP ASVS |
+| Auditoría | Logs inmutables con cadena SHA-256, pg_advisory_xact_lock, triggers anti-UPDATE/DELETE, rol de aplicación con solo INSERT/SELECT | NIST SP 800-92, OWASP Logging Cheat Sheet |
+| Bloqueo por fuerza bruta | Bloqueo tras 5 intentos fallidos (15 min), rate limiting 10 req/min por IP (slowapi) | NIST SP 800-63B |
+| Usuario no root | Contenedores backend e init corren como UID 10001 | CIS Docker Benchmark 4.1 |
+| Capabilities mínimas | `cap_drop: ALL` + `cap_add` de solo las necesarias (NET_BIND_SERVICE, CHOWN, etc.) | CIS Docker Benchmark 5.26 |
+| No secretos en imágenes | Variables de entorno vía docker-compose.yml, no COPY de .env, certificados en volumen de solo lectura | CIS Docker Benchmark 4.1, OWASP ASVS V7.2.1 |
+| Healthchecks | pg_isready (db), /health endpoint (backend) | CIS Docker Benchmark 6.1 |
+| Límites de recursos | mem_limit y pids_limit configurados en docker-compose.yml | CIS Docker Benchmark 5.17 |
+| Filesystem read-only | Backend e init con read_only: true, tmpfs para /tmp | CIS Docker Benchmark 5.15 |
+| Redes internas | db_net: internal (solo backend accede a PostgreSQL) | CIS Docker Benchmark 5.8 |
+| Cabeceras de seguridad | HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, CSP, Cross-Origin-Resource-Policy | OWASP ASVS V7 |
 
 Para más detalles de hardening, ver `docs/HARDENING_DOCKER.md`.
 
@@ -182,25 +187,25 @@ Para más detalles de hardening, ver `docs/HARDENING_DOCKER.md`.
 
 ## Endpoints principales
 
-|| Método | Ruta | Rol requerido | Descripción |
-||---|---|---|---|
-|| POST | `/api/auth/login` | público | Login, retorna JWT |
-|| GET | `/api/pacientes` | doctor, admin, administrativo | Lista pacientes (campos según rol) |
-|| GET | `/api/pacientes/{id}` | doctor (asignado), admin | Detalle completo |
-|| POST | `/api/pacientes` | admin, administrativo | Crear paciente |
-|| PUT | `/api/pacientes/{id}` | doctor (asignado), admin | Editar historial |
-|| DELETE | `/api/pacientes/{id}` | admin | Borrado |
-|| GET | `/api/usuarios` | admin | Gestión de usuarios |
-|| POST | `/api/usuarios` | admin | Crear usuario |
-|| PATCH | `/api/usuarios/{id}/revocar` | admin | Revocar acceso |
-|| GET | `/api/audit-logs` | auditor, admin | Consultar logs (solo lectura) |
-|| GET | `/api/audit-logs/alertas` | auditor, admin | Alertas de accesos anómalos |
-|| GET | `/api/pacientes/me` | paciente | Ver propio historial |
-|| GET | `/api/pacientes/me/accesos` | paciente | Lista de accesos a su historial |
-|| GET | `/api/pacientes/me/export` | paciente | Exportar sus datos (JSON) |
-|| GET | `/api/pacientes/doctores` | paciente, admin | Lista doctores disponibles |
-|| PATCH | `/api/pacientes/{id}/transferir-doctor` | paciente (propio), admin | Transferir paciente a otro doctor |
-|| POST | `/api/pacientes/{id}/acceso-emergencia` | doctor | Acceso de emergencia (break-glass) |
+| Método | Ruta | Rol requerido | Descripción |
+|---|---|---|---|
+| POST | `/api/auth/login` | público | Login, retorna JWT |
+| GET | `/api/pacientes` | doctor, admin, administrativo | Lista pacientes (campos según rol) |
+| GET | `/api/pacientes/{id}` | doctor (asignado), admin | Detalle completo |
+| POST | `/api/pacientes` | admin, administrativo | Crear paciente |
+| PUT | `/api/pacientes/{id}` | doctor (asignado), admin | Editar historial |
+| DELETE | `/api/pacientes/{id}` | admin | Borrado |
+| GET | `/api/usuarios` | admin | Gestión de usuarios |
+| POST | `/api/usuarios` | admin | Crear usuario |
+| PATCH | `/api/usuarios/{id}/revocar` | admin | Revocar acceso |
+| GET | `/api/audit-logs` | auditor, admin | Consultar logs (solo lectura) |
+| GET | `/api/audit-logs/alertas` | auditor, admin | Alertas de accesos anómalos |
+| GET | `/api/pacientes/me` | paciente | Ver propio historial |
+| GET | `/api/pacientes/me/accesos` | paciente | Lista de accesos a su historial |
+| GET | `/api/pacientes/me/export` | paciente | Exportar sus datos (JSON) |
+| GET | `/api/pacientes/doctores` | paciente, admin | Lista doctores disponibles |
+| PATCH | `/api/pacientes/{id}/transferir-doctor` | paciente (propio), admin | Transferir paciente a otro doctor |
+| POST | `/api/pacientes/{id}/acceso-emergencia` | doctor | Acceso de emergencia (break-glass) |
 
 ---
 
@@ -220,17 +225,17 @@ Para más detalles de hardening, ver `docs/HARDENING_DOCKER.md`.
 
 ## Stack técnico
 
-|| Capa | Tecnología | Versión |
-||---|---|---|
-|| Backend | Python + FastAPI | 3.12.7 |
-|| Base de datos | PostgreSQL | 16 Alpine |
-|| ORM | SQLAlchemy | - |
-|| Auth | JWT (`python-jose`) + `bcrypt` | HS256, factor 12 |
-|| Encriptación | `cryptography` (AES-256-GCM) | - |
-|| Frontend | React + Vite | Node 20.19.0 |
-|| Edge | Nginx | 1.27 Alpine |
-|| Orquestación | Docker Compose | - |
-|| Control de versiones | Git / GitHub | - |
+| Capa | Tecnología | Versión |
+|---|---|---|
+| Backend | Python + FastAPI | 3.12.7 |
+| Base de datos | PostgreSQL | 16 Alpine |
+| ORM | SQLAlchemy | - |
+| Auth | JWT (`python-jose`) + `bcrypt` | HS256, factor 12 |
+| Encriptación | `cryptography` (AES-256-GCM) | - |
+| Frontend | React + Vite | Node 20.19.0 |
+| Edge | Nginx | 1.27 Alpine |
+| Orquestación | Docker Compose | - |
+| Control de versiones | Git / GitHub | - |
 
 ---
 
