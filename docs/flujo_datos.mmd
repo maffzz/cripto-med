@@ -1,0 +1,126 @@
+# Diagrama de Flujo de Datos - CriptoMed
+
+**Proyecto:** CriptoMed — Plataforma de Gestión de Historias Clínicas  
+**Asignatura:** DS3031 Ética y Seguridad de Datos (Entrega 2)  
+**Fecha:** Noviembre 2026  
+**Fase:** Fase 3 - DPIA y Consideraciones Éticas (Paso 3.3)
+
+Este diagrama muestra el flujo de datos del paciente a través del sistema CriptoMed, destacando los controles de seguridad en cada etapa. Debe reflejar el código real implementado.
+
+```mermaid
+flowchart TD
+    %% Entrada de datos
+    A[Admisión Paciente<br/>Administrativo o Paciente] -->|TLS 1.3<br/>RFC 8446| B[Edge Nginx<br/>Reverse Proxy]
+    
+    %% Cifrado
+    B -->|TLS 1.3<br/>Red interna app_net| C[Backend FastAPI<br/>uvicorn]
+    C -->|Cifrado AES-256-GCM<br/>FIPS 197<br/>NIST SP 800-38D<br/>AAD vinculado a ID| D[(PostgreSQL<br/>db_net internal)]
+    
+    %% Lectura por roles
+    D -->|RBAC<br/>Mínimo privilegio| E{Rol Usuario}
+    
+    E -->|admin| F[Admin<br/>Acceso total]
+    E -->|doctor| G[Doctor<br/>Solo pacientes asignados<br/>ve datos clínicos]
+    E -->|administrativo| H[Administrativo<br/>Datos básicos + facturación<br/>NO ve diagnóstico]
+    E -->|auditor| I[Auditor<br/>Solo logs de auditoría]
+    E -->|paciente| J[Paciente<br/>Solo su historial]
+    
+    %% Logs de auditoría
+    C -->|log_action<br/>Cadena SHA-256<br/>NIST SP 800-92| K[(Audit Logs<br/>Inmutables)]
+    F -->|lectura/edicion<br/>Registrado| K
+    G -->|lectura/edicion<br/>Registrado| K
+    H -->|lectura/edicion<br/>Registrado| K
+    J -->|lectura<br/>Registrado| K
+    
+    %% Backups
+    D -->|pg_dump<br/>Cifrado GPG AES-256| L[(Backups<br/>Cifrados<br/>backups/)]
+    
+    %% Transferencia de doctor
+    J -->|PATCH /pacientes/me/transferir-doctor<br/>Confirmación explícita| M[Transferencia a<br/>nuevo doctor]
+    M -->|Actualiza doctor_id<br/>Registrado en audit_logs| D
+    
+    %% Exportación al paciente
+    J -->|GET /pacientes/me/export<br/>Acción: exportación| N[Exportación JSON<br/>Datos descifrados<br/>Derecho de portabilidad<br/>Ley 29733]
+    N -->|Registrado en audit_logs| K
+    
+    %% Acceso de emergencia (break-glass)
+    G -->|POST /pacientes/id/acceso-emergencia<br/>Justificación ≥20 caracteres| O[Acceso de emergencia<br/>Ventana 30 minutos]
+    O -->|Registrado como<br/>acceso_emergencia| K
+    O -->|Acceso temporal<br/>a paciente no asignado| D
+    
+    %% Estilos
+    style A fill:#FFE0B2
+    style B fill:#9C27B0,color:#fff
+    style C fill:#4CAF50,color:#fff
+    style D fill:#2196F3,color:#fff
+    style F fill:#FF9800
+    style G fill:#FF9800
+    style H fill:#FF9800
+    style I fill:#FF9800
+    style J fill:#FF9800
+    style K fill:#9E9E9E,color:#fff
+    style L fill:#607D8B,color:#fff
+    style M fill:#E91E63,color:#fff
+    style N fill:#E91E63,color:#fff
+    style O fill:#F44336,color:#fff
+```
+
+---
+
+## Leyenda de Controles de Seguridad
+
+| Control | Descripción | Referencia |
+|---------|-------------|------------|
+| **TLS 1.3** | Cifrado en tránsito con protocolo TLS 1.3 exclusivo (no se acepta TLS 1.2) | RFC 8446, NIST SP 800-52 Rev. 2 |
+| **AES-256-GCM** | Cifrado autenticado en reposo con llaves versionadas y AAD (datos asociados autenticados) | FIPS 197, NIST SP 800-38D |
+| **RBAC** | Control de acceso basado en roles con principio de mínimo privilegio | NIST SP 800-63B, OWASP ASVS |
+| **Cadena SHA-256** | Logs de auditoría encadenados con hashes para detectar alteración | NIST SP 800-92, OWASP Logging Cheat Sheet |
+| **GPG AES-256** | Backups cifrados con GPG usando algoritmo AES-256 | FIPS 197 |
+| **Red interna** | Contenedores backend y db en red interna Docker sin acceso desde host | CIS Docker Benchmark 5.8 |
+| **pg_advisory_xact_lock** | Serialización de escrituras de logs para evitar condiciones de carrera | PostgreSQL documentation |
+
+---
+
+## Notas de Implementación
+
+1. **Entrada de datos:** Los datos se ingresan por administrativo en admisión o por el paciente (si tiene cuenta). El tráfico está protegido por TLS 1.3 en el edge Nginx.
+
+2. **Cifrado en reposo:** El backend cifra los campos sensibles (nombre, diagnóstico, medicación, resultado_test, monto_facturado) con AES-256-GCM antes de guardar en PostgreSQL. Cada campo usa un AAD vinculado al ID del paciente para evitar que un valor cifrado pueda copiarse a otro registro.
+
+3. **Lectura por roles:** El backend aplica RBAC en `backend/app/rbac.py` y `backend/app/routers/pacientes.py`. El administrativo NO ve datos clínicos (diagnóstico, medicación, resultado_test) conforme al Paso 0.3.
+
+4. **Logs de auditoría:** Todas las acciones (login, lectura, edicion, transferencia, exportacion, acceso_emergencia) se registran en `audit_logs` con cadena de hashes SHA-256 (`backend/app/audit.py`). Los logs son inmutables gracias a triggers anti-UPDATE/DELETE (`backend/scripts/sql/proteger_audit_logs.sql`).
+
+5. **Backups:** Los backups se generan con `scripts/backup.sh` usando pg_dump y se cifran con GPG AES-256. Se conservan los últimos 7 días. La passphrase se guarda separada de los backups.
+
+6. **Transferencia de doctor:** El paciente puede transferir su historial a otro doctor mediante `PATCH /pacientes/{id}/transferir-doctor`. Requiere confirmación explícita en el frontend y se registra en audit_logs.
+
+7. **Exportación al paciente:** El paciente puede exportar sus datos en JSON mediante `GET /pacientes/me/export`. Esto ejerce el derecho de acceso y portabilidad conforme a Ley 29733 y GDPR Art. 20. Se registra con acción `exportacion`.
+
+8. **Acceso de emergencia:** Los doctores pueden solicitar acceso de emergencia (break-glass) a pacientes no asignados mediante `POST /pacientes/{id}/acceso-emergencia`. Requiere justificación de al menos 20 caracteres y otorga acceso por 30 minutos. Se registra como `acceso_emergencia` en audit_logs.
+
+---
+
+## Referencias
+
+- **Código real:**
+  - `backend/app/crypto.py` - Cifrado AES-256-GCM
+  - `backend/app/rbac.py` - Control de acceso basado en roles
+  - `backend/app/routers/pacientes.py` - Endpoints de pacientes
+  - `backend/app/audit.py` - Logs de auditoría con cadena de hashes
+  - `backend/scripts/sql/proteger_audit_logs.sql` - Triggers de inmutabilidad
+  - `scripts/backup.sh` - Backups cifrados
+  - `docker-compose.yml` - Arquitectura Docker y redes
+
+- **Estándares:**
+  - FIPS 197 - Advanced Encryption Standard
+  - NIST SP 800-38D - Recommendation for Block Cipher Modes of Operation: GCM
+  - NIST SP 800-92 - Guide to Computer Security Log Management
+  - NIST SP 800-52 Rev. 2 - Transport Layer Security (TLS)
+  - RFC 8446 - The Transport Layer Security (TLS) Protocol Version 1.3
+  - RFC 7519 - JSON Web Token (JWT)
+  - OWASP ASVS - Application Security Verification Standard
+  - OWASP Logging Cheat Sheet - Logging Best Practices
+  - CIS Docker Benchmark - Benchmarks for Container Security
+  - Ley 29733 - Ley de Protección de Datos Personales (Perú)
+  - GDPR Art. 20 - Right to data portability

@@ -37,7 +37,6 @@ def formatear_paciente_respuesta(p: Paciente, usuario: Usuario = None) -> dict:
         "edad": p.edad,
         "genero": p.genero,
         "tipo_sangre": p.tipo_sangre,
-        "codigo_cie10": p.codigo_cie10,
         "fecha_admision": p.fecha_admision.isoformat() if p.fecha_admision else None,
         "hospital": p.hospital,
         "proveedor_seguro": p.proveedor_seguro,
@@ -51,12 +50,13 @@ def formatear_paciente_respuesta(p: Paciente, usuario: Usuario = None) -> dict:
         "monto_facturado_descifrado": decrypt(p.monto_facturado, aad=f"pacientes.monto_facturado.{pid}") if p.monto_facturado else None,
     }
     
-    # Administrativo: NO ve diagnóstico, medicación, resultado_test
+    # Administrativo: NO ve diagnóstico, código CIE-10, medicación ni resultado_test (Paso 0.3)
     if usuario and usuario.rol == RolEnum.administrativo:
         return datos
     
-    # Admin y Doctor (o sin usuario especificado): ven todos los campos
+    # Admin y Doctor (o sin usuario especificado): ven todos los campos clínicos
     datos.update({
+        "codigo_cie10": p.codigo_cie10,
         "diagnostico_descifrado": decrypt(p.diagnostico, aad=f"pacientes.diagnostico.{pid}") if p.diagnostico else None,
         "medicacion_descifrado": decrypt(p.medicacion, aad=f"pacientes.medicacion.{pid}") if p.medicacion else None,
         "resultado_test_descifrado": decrypt(p.resultado_test, aad=f"pacientes.resultado_test.{pid}") if p.resultado_test else None,

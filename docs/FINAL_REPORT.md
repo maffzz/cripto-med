@@ -1,1115 +1,561 @@
 # Informe Final - CriptoMed: Sistema de Gestión de Historiales Médicos con Seguridad de Datos
 
-**Curso:** DS3031 - Ética y Seguridad de Datos
-**Tipo de Proyecto:** Tipo 1 - Aplicación de seguridad de datos en caso de uso real
-**Estudiante:** María Lazon
-**Fecha:** Septiembre 2026
+**Curso:** DS3031 - Ética y Seguridad de Datos  
+**Tipo de Proyecto:** Tipo 1 - Aplicación de seguridad de datos en caso de uso real  
+**Estudiante:** María Lazon  
+**Fecha:** Noviembre 2026
 
 ---
 
 ## Resumen Ejecutivo
 
-CriptoMed es un sistema web de gestión de historiales médicos diseñado para pequeñas clínicas en Perú que actualmente manejan datos de pacientes de forma insegura (papel o spreadsheets sin protección). El sistema centraliza historiales médicos, implementa control de acceso basado en roles (RBAC), encriptación de datos sensibles (AES-256), autenticación con JWT, y logs de auditoría inmutables. El proyecto cumple con la Ley Peruana N° 29733 de Protección de Datos Personales y demuestra medidas de seguridad en reposo, transporte, y gestión de accesos.
+CriptoMed es una plataforma web de gestión de historiales médicos diseñada para pequeñas clínicas en Perú que actualmente manejan datos de pacientes de forma insegura (papel o spreadsheets sin protección). El sistema centraliza historiales médicos, implementa control de acceso basado en roles (RBAC), cifrado de datos sensibles con AES-256-GCM, autenticación con JWT, y logs de auditoría inmutables mediante cadena de hashes SHA-256. El proyecto cumple con la Ley Peruana N° 29733 de Protección de Datos Personales y demuestra medidas de seguridad en reposo, transporte, identidad, autorización, trazabilidad y continuidad.
 
-**Stack técnico:** Backend (FastAPI + Python), Base de datos (PostgreSQL en Docker), Frontend (React + Vite), Certificados SSL autofirmados, Encriptación (Fernet/AES-256), Hashing (bcrypt), Autenticación (JWT).
+**Stack técnico:** Backend (FastAPI + Python 3.12.7), Base de datos (PostgreSQL 16 en Docker Compose), Frontend (React + Vite + Node 20.19.0), Edge Nginx con TLS 1.3, Cifrado (AES-256-GCM con llaves versionadas), Hashing (bcrypt factor 12), Autenticación (JWT HS256).
 
-**Evolución del despliegue:** En la Entrega 1 el sistema se desplegó en Render y GitHub Pages; para la Entrega 2 se migró a un despliegue local con Docker Compose para controlar el aislamiento de red, la terminación TLS y la gestión de llaves.
+**Evolución del despliegue:** En la Entrega 1 el sistema se desplegó en Render y GitHub Pages; para la Entrega 2 se migró a un despliegue local con Docker Compose para controlar el aislamiento de red, la terminación TLS y la gestión de llaves. Esta decisión mejora la seguridad al eliminar dependencias de servicios externos y permite reproducibilidad completa del entorno.
 
-**Resultados:**
+**Resultados clave:**
 - Reducción de tiempo de acceso a historiales de ~10 min a <30 seg
-- 100% de campos sensibles encriptados en reposo
-- 100% de accesos registrados en logs de auditoría
-- 4 roles implementados con principio de mínimo privilegio
+- 100% de campos sensibles cifrados en reposo con AES-256-GCM (nombre, diagnóstico, medicación, resultado_test, monto_facturado)
+- 100% de accesos registrados en logs de auditoría inmutables con cadena SHA-256
+- 5 roles implementados con principio de mínimo privilegio (admin, doctor, administrativo, auditor, paciente)
+- Verificación con herramientas de seguridad (Bandit, pip-audit, npm audit, Gitleaks, Hadolint, Trivy, testssl.sh, OWASP ZAP) mostrando reducción del 61.18% en hallazgos tras remediación
+- DPIA completa con 12 riesgos identificados, todos con riesgo residual bajo-medio
 
 ---
 
-## 1. Contexto e Introducción
+## 1. Problema y Contexto
 
 ### 1.1 Motivación
 
-Las pequeñas clínicas en Perú enfrentan un problema crítico: los historiales médicos de pacientes se gestionan de forma insegura, ya sea en papel o en spreadsheets no protegidos. Esto resulta en:
-
-- **Pérdida de información crítica:** El papel se puede perder, dañar o destruir fácilmente
-- **Acceso no autorizado:** Cualquier persona con acceso físico a los archivos puede leer información sensible
-- **Dificultad de auditoría:** No hay registro de quién accedió a qué datos y cuándo
-- **Ineficiencia operativa:** La búsqueda de historiales toma ~10 minutos en promedio
-- **Riesgo de cumplimiento:** Potencial incumplimiento de la Ley Peruana N° 29733 sobre protección de datos personales
-- **Riesgo de ataques:** Según el reporte "The State of Ransomware in Healthcare 2024" de Sophos, el 67% de las organizaciones de salud sufrió ataques de ransomware en 2024
+Las pequeñas clínicas en Perú enfrentan un problema crítico: los historiales médicos de pacientes se gestionan de forma insegura, ya sea en papel o en spreadsheets no protegidos. Esto resulta en pérdida de información crítica, acceso no autorizado, dificultad de auditoría, ineficiencia operativa y riesgo de cumplimiento con la Ley Peruana N° 29733 sobre protección de datos personales. Según el reporte "The State of Ransomware in Healthcare 2024" de Sophos, el 67% de las organizaciones de salud sufrió ataques de ransomware en 2024, lo que eleva la urgencia de implementar medidas de seguridad efectivas.
 
 ### 1.2 Caso de Uso de Negocio
 
-**Contexto:** Una pequeña clínica en Lima con 3 doctores, 2 administrativos, y ~55,000 pacientes registrados históricamente.
+**Contexto:** Una pequeña clínica en Lima con 3 doctores, 2 administrativos, y ~55,000 pacientes registrados históricamente. Los historiales médicos se almacenan en carpetas físicas en un archivo. Los doctores necesitan ~10 minutos para encontrar un historial específico. No hay registro de quién accede a qué historiales. Los datos de diagnóstico y medicación están expuestos a cualquier persona con acceso al archivo.
 
-**Problema:** Los historiales médicos se almacenan en carpetas físicas en un archivo. Los doctores necesitan ~10 minutos para encontrar un historial específico. No hay registro de quién accede a qué historiales. Los datos de diagnóstico y medicación están expuestos a cualquier persona con acceso al archivo.
-
-**Solución:** CriptoMed centraliza los historiales médicos en una base de datos segura, permite acceso rápido (<30 seg), registra todos los accesos, y encripta datos sensibles para proteger la privacidad de los pacientes.
+**Solución:** CriptoMed centraliza los historiales médicos en una base de datos segura, permite acceso rápido (<30 seg), registra todos los accesos en logs inmutables, y cifra datos sensibles para proteger la privacidad de los pacientes.
 
 ### 1.3 Datasets Utilizados
 
-**Dataset principal:** Healthcare Dataset (55,500 registros)
-- **Fuente:** Kaggle
-- **Contenido:** Nombre, edad, género, tipo de sangre, diagnóstico, fecha de admisión, doctor, hospital, seguro, monto facturado, medicación, resultados de tests
-- **Relevancia:** Representa datos de pacientes con información médica y financiera sensible
+**Dataset principal:** Healthcare Dataset (55,500 registros) de Kaggle. Contiene nombre, edad, género, tipo de sangre, diagnóstico, fecha de admisión, doctor, hospital, seguro, monto facturado, medicación, resultados de tests. Representa datos de pacientes con información médica y financiera sensible.
 
-**Dataset complementario:** CIE-10 (14,409 códigos)
-- **Fuente:** WHO (Organización Mundial de la Salud)
-- **Contenido:** Códigos y descripciones de diagnósticos según Clasificación Internacional de Enfermedades
-- **Relevancia:** Estandarización de diagnósticos médicos y cumplimiento con normas de salud
+**Dataset complementario:** CIE-10 (14,409 códigos) de la WHO (Organización Mundial de la Salud). Contiene códigos y descripciones de diagnósticos según Clasificación Internacional de Enfermedades. Es necesario para estandarización clínica y cumplimiento con normas de salud.
+
+**Nota sobre datos sintéticos:** El dataset no contiene pacientes reales, pero el sistema se diseñó como si los contuviera. No se usan datos reales en pruebas para evitar exposición de información sensible durante desarrollo.
 
 ---
 
-## 2. Requerimientos de Negocio
+## 2. Solución y Arquitectura
 
-### 2.1 Valor al Caso de Negocio (KPIs)
+### 2.1 Arquitectura General
 
-| KPI | Estado Actual | Objetivo | Logro |
-|-----|---------------|----------|-------|
-| Tiempo de acceso a historial | ~10 minutos | <30 segundos | 80% de reducción |
-| Campos sensibles encriptados | 0% | 100% | 100% encriptados |
-| Accesos registrados en logs | 0% | 100% | 100% registrados |
-| Incidentes de acceso no autorizado | Desconocido | 0 | 0 incidentes |
+CriptoMed sigue una arquitectura de tres capas con Docker Compose para aislamiento y reproducibilidad:
 
-**Justificación:**
-- La reducción de tiempo de acceso mejora la eficiencia operativa
-- La encriptación protege la privacidad de los pacientes
-- Los logs de auditoría permiten trazabilidad y cumplimiento normativo
-- El control de acceso reduce el riesgo de fugas de datos
+**Decisión:** Despliegue local con Docker Compose en lugar de servicios cloud (Render, GitHub Pages).  
+**Por qué:** Control completo sobre aislamiento de red, terminación TLS y gestión de llaves. Elimina dependencias de servicios externos y permite reproducibilidad del entorno.  
+**Estándar:** CIS Docker Benchmark (aislamiento de red, contenedores no-root, capacidades mínimas).  
+**Alternativa descartada:** Despliegue en PaaS (Render, Heroku) - no permite control granular de red y configuración de TLS.  
+**Evidencia:** `docker-compose.yml`, `docs/DOCKER.md`, `docs/HARDENING_DOCKER.md`.
 
-### 2.2 Cumplimiento con Ley Peruana N° 29733
+**Componentes:**
+- **Edge Nginx (nginx:1.27-alpine):** Termina TLS 1.3 exclusivo, sirve frontend React compilado, reenvía /api al backend. Solo contenedor que publica puerto al host (8443).
+- **Backend FastAPI (python:3.12.7-slim):** API REST con autenticación JWT, cifrado AES-256-GCM, RBAC, logs de auditoría. Corre en red interna Docker.
+- **PostgreSQL (postgres:16-alpine):** Base de datos con roles (owner y aplicación), en red interna sin acceso desde host.
+- **Init (perfil seed):** Servicio de inicialización que crea tablas y siembra datos de demo.
 
-**Artículo 3 - Definición de datos personales sensibles:**
-- Datos de salud son considerados sensibles ✅
-- CriptoMed identifica y clasifica datos de salud como sensibles
-
-**Artículo 5 - Medidas de seguridad:**
-- Medidas técnicas: Encriptación, hashing, control de acceso ✅
-- Medidas organizativas: Políticas, procedimientos, capacitación ✅
-- Medidas legales: Notificación a ANPD (Autoridad Nacional de Protección de Datos Personales) en caso de incidente ✅
-
-**Artículo 10 - Notificación de incidentes:**
-- Procedimiento de notificación a ANPD (Autoridad Nacional de Protección de Datos Personales) documentado ✅
-- Plazo de 72 horas establecido ✅
-
-**Artículo 14 - Derechos de los titulares:**
-- Derecho de acceso: Los pacientes pueden solicitar sus datos (futuro)
-- Derecho de rectificación: Los pacientes pueden corregir datos (futuro)
-- Derecho de supresión: Los pacientes pueden solicitar eliminación (futuro)
-
-### 2.3 Contingencias, Backups y Recuperación
-
-**Backups:**
-- Script de backup automatizado (`backup_db.sh`) ✅
-- Retención de backups por 7 días ✅
-- Backups almacenados en directorio separado ✅
-
-**Recuperación ante desastres:**
-- Plan de recuperación documentado (`RECOVERY_PLAN.md`) ✅
-- Procedimientos para fuga de datos, ransomware, pérdida de datos ✅
-- Tiempos objetivo de recuperación definidos ✅
-
-**Contingencias:**
-- Volumen Docker para persistencia de datos ✅
-- Documentación de recuperación ante desastres ✅
-- Plan de rotación de llaves ✅
-
-### 2.4 Matriz de Riesgos
-
-|| Riesgo | Probabilidad | Impacto | Mitigación |
-||--------|-------------|---------|------------|
-|| Fuga de datos por compromiso de credenciales | Media | Alto | MFA, rotación de contraseñas, monitoreo de accesos |
-|| Fuga de datos por vulnerabilidad de API | Baja | Alto | SAST, pentesting, OWASP ZAP |
-|| Fuga de datos por ransomware | Media | Crítico | Backups, sin pago de rescate, plan de recuperación |
-|| Fuga de datos por error humano | Alta | Medio | Capacitación, procesos, validación de formularios |
-|| Fuga de datos por tercero | Baja | Alto | Due diligence de proveedores, contratos de confidencialidad |
-|| Fuga de datos en tránsito (MITM) | Baja | Alto | HTTPS, certificados SSL/TLS 1.3 |
-|| Fuga de datos en reposo por compromiso de servidor | Baja | Crítico | Encriptación AES-256, controles de acceso físico |
-|| Pérdida de datos por fallo de hardware | Media | Alto | Backups, redundancia, plan de recuperación |
-|| Acceso no autorizado por phishing | Alta | Medio | Capacitación, simulacros de phishing, MFA |
-|| Exposición accidental de datos en logs | Baja | Medio | Minimización de datos en logs, masking de información sensible |
-
----
-
-## 3. Requerimientos de Seguridad
-
-### 3.1 Medidas de Protección en Reposo y Transporte
-
-#### 3.1.1 Encriptación en Reposo
-**Implementación:**
-- **Algoritmo:** Fernet (AES-256 en CBC mode)
-- **Librería:** cryptography (Python)
-- **Campos encriptados:** nombre, diagnóstico, monto facturado, medicación, resultado de test
-- **Llave:** Fernet key generada y almacenada en `.env`
-
-**Justificación:**
-- AES-256 es estándar de encriptación para datos sensibles
-- Fernet simplifica implementación con manejo automático de IV
-- Campos sensibles no son legibles en la base de datos
-
-**Verificación:**
-```sql
--- Los campos encriptados se ven como:
-gAAAAABlF7lR3G6qY7hZ...
-```
-
-#### 3.1.2 Encriptación en Transporte
-**Implementación:**
-- **Protocolo:** HTTPS con certificados SSL autofirmados
-- **Librería:** uvicorn con SSL support
-- **Certificados:** cert.pem y key.pem generados con OpenSSL
-- **Algoritmo:** RSA 2048
-
-**Justificación:**
-- HTTPS protege datos en tránsito entre navegador y servidor
-- Certificados autofirmados cumplen requisito de "certificados digitales"
-- En producción se recomienda certificados de Let's Encrypt
-
-**Nota:** En desarrollo se usa HTTP para evitar errores de certificado autofirmado en navegadores. En producción se debe usar HTTPS.
-
-#### 3.1.3 Hashing de Contraseñas
-**Implementación:**
-- **Algoritmo:** bcrypt
-- **Librería:** passlib[bcrypt]
-- **Factor de trabajo:** 12
-- **Salting:** Automático por bcrypt
-
-**Justificación:**
-- bcrypt es algoritmo estándar para hashing de contraseñas
-- Factor de trabajo 12 balancea seguridad y rendimiento
-- Salting previene ataques de rainbow tables
-
-**Verificación:**
-```sql
--- Las contraseñas hasheadas se ven como:
-$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5xY8GwT1sHsGC
-```
-
-#### 3.1.4 Gestión de Accesos (RBAC)
-**Implementación:**
-- **Modelo:** Role-Based Access Control (RBAC)
-- **Roles:** admin, doctor, administrativo, auditor
-- **Principio:** Mínimo privilegio
-- **Implementación:** Decorador `require_role()` en routers
-
-**Justificación:**
-- RBAC es estándar de gestión de accesos
-- Principio de mínimo privilegio reduce riesgo de fuga de datos
-- Roles alineados con organización típica de clínica
-
-**Permisos por rol:**
-| Rol | Pacientes | Diagnóstico Completo | Facturación | Logs |
-|-----|-----------|----------------------|-------------|------|
-| admin | Todos | Sí | Sí | Sí |
-| doctor | Asignados | Sí | No | No |
-| administrativo | Todos (datos básicos) | No (no ve diagnósticos médicos detallados) | Sí | No |
-| auditor | Ninguno | No | No | Sí |
-
-#### 3.1.5 Logs de Auditoría
-**Implementación:**
-- **Tabla:** audit_logs
-- **Campos:** usuario_id, acción, recurso, timestamp, ip_origen
-- **Acciones registradas:** login, lectura, edición, borrado
-- **Middleware:** AuditMiddleware intercepta requests sensibles
-
-**Justificación:**
-- Logs de auditoría permiten trazabilidad de accesos
-- Inmutabilidad de logs (no hay método de borrado en API)
-- Cumplimiento con Ley N° 29733
-
-**Verificación:**
-```sql
-SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 10;
-```
-
-### 3.2 Estrategias de Uso Seguro
-
-#### 3.2.1 Políticas de Contraseñas
-**Documentación:** `PASSWORD_POLICY.md` (Alineado a NIST SP 800-63B)
-
-**Longitud mínima:**
-- Para autenticación de factor único: mínimo 15 caracteres
-- Para autenticación multifactor: mínimo 8 caracteres
-- Longitud máxima recomendada: al menos 64 caracteres
-
-**Composición:**
-- NO se imponen requisitos de composición (mayúsculas, minúsculas, números, caracteres especiales)
-- Se permite y se recomienda el uso de frases (passphrases)
-- El sistema bloquea contraseñas comunes, esperadas o comprometidas
-
-**Rotación:**
-- NO se requiere rotación periódica de contraseñas (NIST SP 800-63B recomienda no forzar rotación a menos que haya evidencia de compromiso)
-- Se permite al usuario mantener su contraseña mientras no esté comprometida
-
-**No reutilización:**
-- Se bloquean contraseñas que hayan sido comprometidas en filtraciones conocidas
-- Se verifica contra listas de contraseñas filtradas públicamente
-
-#### 3.2.2 Procedimientos de Gestión de Usuarios
-**Documentación:** `USER_MANAGEMENT.md`
-- Creación de usuarios con aprobación de admin
-- Offboarding estructurado con preservación de logs
-- Revocación de accesos al salir del personal
-- Soft delete para investigaciones post-incidente
-
-#### 3.2.3 Awareness y Formación del Equipo
-**Documentación:** `SECURITY_AWARENESS.md`
-- Capacitación obligatoria al ingreso (4 horas)
-- Capacitación anual de refresco (2 horas)
-- Campañas mensuales de concientización
-- Simulacros de phishing trimestrales
-
-### 3.3 Plan de Respuesta ante Incidentes
-
-**Documentación:** `INCIDENT_RESPONSE.md`
-- Clasificación de incidentes por severidad (1-5)
-- Equipo de respuesta con roles definidos
-- Fases: Detección → Contención → Erradicación → Recuperación → Post-Incidente
-- Tiempos objetivo de respuesta (MTTR: <72 horas)
-
-**Procedimientos de notificación:** `NOTIFICATION_PROCEDURES.md`
-- Notificar a la ANPD dentro de las 48 horas de tomar conocimiento del incidente e informar a los titulares afectados (Reglamento de la Ley 29733, D.S. 016-2024-JUS). Si el incidente es en un entorno digital, reportar también al Centro Nacional de Seguridad Digital.
-- Notificación a pacientes sin demora indebida
-- Plantillas de notificación predefinidas
-
-**Procedimientos de mitigación:** `MITIGATION_PROCEDURES.md`
-- Mitigación inmediata (0-2 horas)
-- Mitigación a corto plazo (24 horas)
-- Mitigación a largo plazo (30 días)
-
-### 3.4 Recomendaciones Futuras
-
-**Documentación:** `FUTURE_RECOMMENDATIONS.md`
-- HSM (Hardware Security Module) para protección de llaves
-- MFA (Autenticación Multifactor) para login
-- Rotación automática de llaves
-- DLP (Data Loss Prevention) para detección de fugas
-- SIEM (Security Information and Event Management) para correlación de logs
-- WAF (Web Application Firewall) para protección web
-- Zero Trust Architecture para verificación continua
-
----
-
-## 4. Otros Requerimientos Técnicos
-
-### 4.1 Base de Datos
-**Implementación:** PostgreSQL 14 en Docker
-- **Contenedorización:** Docker Compose para portabilidad
-- **Persistencia:** Volumen Docker para backups
-- **Configuración:** Usuario: criptomed, DB: criptomed, Puerto: 5433
-
-**Justificación:**
-- PostgreSQL es estándar de bases de datos relacionales
-- Docker permite reproducibilidad del entorno
-- Volumen Docker facilita backups y recuperación
-
-### 4.2 Frontend y Backend
-**Backend:** FastAPI (Python)
-- **Framework:** FastAPI para API REST
-- **Autenticación:** JWT con python-jose
-- **Validación:** Pydantic para schemas
-- **Routers:** Estructura modular por dominio
-
-**Frontend:** React (Vite)
-- **Framework:** React con Vite para desarrollo rápido
-- **Routing:** React Router para navegación
-- **HTTP:** Axios para llamadas al backend
-- **Estado:** Context API para autenticación
-
-**Justificación:**
-- FastAPI es moderno, rápido y fácil de usar
-- React es estándar de frontend, desplegable en GitHub Pages
-- Axios simplifica llamadas HTTP con JWT
-
-### 4.3 Certificados Digitales
-**Implementación:** Certificados SSL autofirmados
-- **Generación:** OpenSSL
-- **Formato:** cert.pem (certificado) y key.pem (llave privada)
-- **Validez:** 365 días
-- **Algoritmo:** RSA 2048
-
-**Justificación:**
-- Certificados autofirmados cumplen requisito de "certificados digitales"
-- En producción se recomienda certificados de Let's Encrypt
-- En desarrollo se usa HTTP para evitar errores de navegador
-
-### 4.4 Lenguaje de Programación
-**Backend:** Python 3
-- **Motivación:** Ecosistema rico en librerías de seguridad
-- **Librerías:** FastAPI, SQLAlchemy, cryptography, passlib, python-jose
-
-**Frontend:** JavaScript (React)
-- **Motivación:** Ecosistema rico en frameworks de frontend
-- **Librerías:** React, Axios, React Router
-
-### 4.5 Motores GPT/IA Generativa
-**Implementación:** Devin (IA generativa de Cognition)
-- **Uso:** Asistencia en desarrollo de código
-- **Beneficio:** Aceleración de desarrollo
-- **Transparencia:** Se menciona en informe
-
----
-
-## 5. Diseño del Sistema
-
-### 5.1 Arquitectura
+### 2.2 Diagrama de Arquitectura
 
 ```mermaid
 graph TB
-    subgraph "Cliente (Navegador)"
-        A[Usuario]
-        B[Frontend React]
-        B --> C[JWT Token]
+    subgraph "Host"
+        H[Host: 8443]
     end
     
-    subgraph "Frontend (GitHub Pages)"
+    subgraph "Red app_net"
+        E[Edge Nginx<br/>TLS 1.3]
+        B[Backend FastAPI<br/>puerto 8000]
+    end
+    
+    subgraph "Red db_net (internal)"
         B
-        B -->|HTTPS/HTTP| D[Backend FastAPI]
+        D[PostgreSQL<br/>puerto 5432]
     end
     
-    subgraph "Backend (Render)"
-        D
-        D -->|psycopg| E[PostgreSQL]
-        D -->|AES-256| F[Datos Encriptados]
-        D -->|bcrypt| G[Contraseñas Hashed]
-        D -->|JWT| H[Middleware Auth]
-        D -->|RBAC| I[Middleware Roles]
-        D -->|Audit| J[Logs Inmutables]
-    end
+    H -->|HTTPS 1.3| E
+    E -->|Proxy /api| B
+    B -->|DATABASE_URL| D
     
-    subgraph "Base de Datos (Render)"
-        E
-        E -->|Tablas| K[Usuarios]
-        E -->|Tablas| L[Pacientes]
-        E -->|Tablas| M[Audit Logs]
-        E -->|Tablas| N[Diagnósticos CIE-10]
-    end
-    
-    subgraph "Capas de Seguridad"
-        H
-        I
-        J
-        F
-        G
-    end
-    
-    style D fill:#4CAF50
-    style E fill:#2196F3
-    style B fill:#FF9800
-    style H fill:#f44336
-    style I fill:#9C27B0
-    style J fill:#607D8B
-    style F fill:#FF5722
-    style G fill:#795548
+    style H fill:#FF9800
+    style E fill:#9C27B0
+    style B fill:#4CAF50
+    style D fill:#2196F3
 ```
 
-**Componentes:**
-- **Frontend (React):** Desplegado en GitHub Pages, maneja UI y UX
-- **Backend (FastAPI):** Desplegado en Render, API REST con autenticación JWT
-- **Base de Datos (PostgreSQL):** Desplegado en Render, datos persistentes
-- **Middleware de Autenticación:** Verifica JWT tokens en cada request
-- **Middleware de RBAC:** Controla acceso basado en roles (admin, doctor, paciente, etc.)
-- **Middleware de Auditoría:** Registra cada acción en logs inmutables
-- **Encriptación AES-256:** Campos sensibles encriptados en reposo
-- **Hashing bcrypt:** Contraseñas encriptadas con bcrypt
-- **HTTPS:** Datos encriptados en transporte
-
 **Flujo de datos:**
-1. Usuario hace login → Frontend envía credenciales a Backend
-2. Backend verifica credenciales → Genera JWT token
-3. Frontend almacena JWT token → Lo envía en cada request
-4. Backend verifica JWT token → Middleware Auth permite acceso
-5. Backend verifica rol del usuario → Middleware RBAC autoriza endpoint
-6. Backend ejecuta acción → Middleware Audit registra log
-7. Datos encriptados en reposo → Desencriptados solo en memoria para respuesta
+1. Navegador → Edge Nginx (TLS 1.3)
+2. Edge Nginx → Backend FastAPI (red interna app_net)
+3. Backend FastAPI → PostgreSQL (red interna db_net)
+4. Todos los datos sensibles se cifran con AES-256-GCM antes de guardar en PostgreSQL
+5. Todas las acciones se registran en audit_logs con cadena SHA-256
 
-### 5.2 Modelo de Datos
+### 2.3 Modelo de Datos
 
-**Tablas:**
-- `usuarios`: Usuarios del sistema (admin, doctor, administrativo, auditor)
-- `pacientes`: Historiales médicos de pacientes
-- `diagnosticos_cie10`: Códigos de diagnósticos CIE-10
-- `audit_logs`: Logs de auditoría de accesos
+**Tablas principales:**
+- `usuarios`: Cuentas de usuario con roles (admin, doctor, administrativo, auditor, paciente)
+- `pacientes`: Historiales médicos con campos cifrados (nombre, diagnóstico, medicación, resultado_test, monto_facturado)
+- `diagnosticos_cie10`: Catálogo de códigos CIE-10
+- `audit_logs`: Logs de auditoría con cadena de hashes SHA-256 (seq, hash_prev, hash_actual)
+- `accesos_emergencia`: Registros de accesos break-glass con ventana temporal
 
 **Relaciones:**
-- `pacientes.doctor_id` → `usuarios.id`
+- `pacientes.doctor_id` → `usuarios.id` (médico asignado)
+- `pacientes.usuario_id` → `usuarios.id` (cuenta de login del paciente, opcional)
 - `pacientes.codigo_cie10` → `diagnosticos_cie10.codigo`
 - `audit_logs.usuario_id` → `usuarios.id`
 
-### 5.3 Flujos de Autenticación
-
-**Login:**
-1. Usuario ingresa email y contraseña
-2. Frontend envía POST /auth/login
-3. Backend verifica contraseña con bcrypt
-4. Backend genera JWT token
-5. Frontend guarda token en localStorage
-6. Frontend configura Authorization header
-
-**Acceso a endpoint protegido:**
-1. Frontend envía request con Authorization header
-2. Backend verifica JWT token
-3. Backend carga usuario desde base de datos
-4. Backend verifica role del usuario
-5. Backend retorna datos según role
-
-### 5.4 Encriptación de Datos
-
-**Proceso de encriptación:**
-1. Sistema lee `ENCRYPTION_KEY` de `.env`
-2. Sistema crea objeto Fernet con la llave
-3. Sistema encripta campo sensible con `fernet.encrypt()`
-4. Sistema guarda campo encriptado en base de datos
-
-**Proceso de desencriptación:**
-1. Sistema lee campo encriptado de base de datos
-2. Sistema desencripta campo con `fernet.decrypt()`
-3. Sistema retorna campo descifrado al frontend
-
-**Nota:** Campos sensibles solo se descifran en memoria, nunca se guardan en texto claro en la base de datos.
+**Evidencia:** `backend/app/models.py`, `docs/inventario_datos.md`.
 
 ---
 
-## 6. Implementación
+## 3. Diseño de Seguridad
 
-### 6.1 Estructura del Proyecto
+### 3.1 Cifrado en Reposo
 
-```
-cripto-med/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # Aplicación FastAPI
-│   │   ├── models.py            # Modelos SQLAlchemy
-│   │   ├── schemas.py           # Schemas Pydantic
-│   │   ├── database.py          # Configuración de DB
-│   │   ├── crypto.py            # Funciones de encriptación
-│   │   ├── auth.py              # Funciones de autenticación
-│   │   ├── rbac.py              # Decorador de roles
-│   │   ├── audit.py             # Middleware de auditoría
-│   │   └── routers/
-│   │       ├── auth.py          # Router de autenticación
-│   │       ├── usuarios.py      # Router de usuarios
-│   │       ├── pacientes.py     # Router de pacientes
-│   │       └── audit_logs.py    # Router de logs
-│   ├── certs/
-│   │   ├── cert.pem             # Certificado SSL
-│   │   └── key.pem              # Llave privada SSL
-│   ├── scripts/
-│   │   ├── setup_db_docker.py   # Script de setup de DB
-│   │   ├── seed_db.py           # Script de carga de datos
-│   │   ├── backup_db.sh         # Script de backup
-│   │   ├── create_user.py       # Script de creación de usuarios
-│   │   ├── verificar_cifrado.py # Script de verificación
-│   │   └── verificar_logs.py    # Script de verificación
-│   └── requirements.txt         # Dependencias de Python
-├── frontend/
-│   ├── src/
-│   │   ├── pages/
-│   │   │   ├── Login.jsx
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── PacienteDetalle.jsx
-│   │   │   └── AuditLog.jsx
-│   │   ├── components/
-│   │   │   └── Layout.jsx
-│   │   ├── context/
-│   │   │   └── AuthContext.jsx
-│   │   └── App.jsx
-│   └── package.json
-├── data/
-│   ├── cie10.csv
-│   └── healthcare_dataset_mapped.csv
-├── docker-compose.yml
-├── .env
-├── .env.example
-├── .gitignore
-├── README.md
-├── SETUP_GUIDE.md
-├── RECOVERY_PLAN.md
-├── HTTPS_CONFIGURATION.md
-├── PASSWORD_POLICY.md
-├── USER_MANAGEMENT.md
-├── SECURITY_AWARENESS.md
-├── INCIDENT_RESPONSE.md
-├── NOTIFICATION_PROCEDURES.md
-├── MITIGATION_PROCEDURES.md
-└── FUTURE_RECOMMENDATIONS.md
-```
+**Decisión:** Migrar de Fernet (AES-128-CBC + HMAC) a AES-256-GCM con llaves versionadas.  
+**Por qué:** Fernet no es estándar NIST y usa AES-128 (128 bits). AES-256-GCM es estándar NIST (FIPS 197, NIST SP 800-38D) con cifrado autenticado y llave de 256 bits. La migración a AES-256-GCM responde a la observación del profesor en la Entrega 1.  
+**Estándar:** FIPS 197 (Advanced Encryption Standard), NIST SP 800-38D (GCM mode), NIST SP 800-57 Part 1 (key management).  
+**Alternativa descartada:** Mantener Fernet - no es estándar NIST, usa 128 bits, no documenta integridad explícita.  
+**Evidencia:** `backend/app/crypto.py` (implementación AES-256-GCM), `scripts/rotate_keys.py` (rotación de llaves), `backend/app/models.py` (propiedades cifradas con AAD).
 
-### 6.2 Endpoints de la API
+**Implementación:**
+- Llaves versionadas en formato ENC_KEYS: `v1:<base64url_32bytes>,v2:<base64url_32bytes>`
+- ENC_KEY_CURRENT define llave activa (ej: "v2")
+- Cifrado con nonce aleatorio de 12 bytes (recomendación NIST SP 800-38D)
+- AAD (datos asociados autenticados) vinculado al ID del paciente para evitar copia entre registros
+- Campos cifrados: nombre, diagnóstico, medicacion, resultado_test, monto_facturado
 
-**Autenticación:**
-- `POST /auth/login` - Login de usuario (público)
-  - **Permisos:** Público
-  - **Por qué:** Necesario para obtener JWT token
-  - **Parámetros:** username (email), password
-  - **Respuesta:** access_token, token_type
+**Verificación:** `scripts/verificar_cifrado.py` confirma que campos sensibles empiezan con prefijo de versión (ej: "v2:") y no contienen texto legible.
 
-- `GET /auth/me` - Obtener usuario actual (autenticado)
-  - **Permisos:** Cualquier rol autenticado
-  - **Por qué:** Permite al frontend obtener información del usuario actual
-  - **Protección:** JWT token requerido
+### 3.2 Cifrado en Tránsito
 
-**Usuarios:**
-- `GET /usuarios` - Listar usuarios (solo admin)
-  - **Permisos:** Admin
-  - **Por qué:** Solo admin puede ver todos los usuarios del sistema
-  - **Protección:** JWT token + RBAC (admin role)
-  - **Respuesta:** Lista de usuarios con roles
+**Decisión:** TLS 1.3 exclusivo en edge Nginx, rechazando TLS 1.2.  
+**Por qué:** TLS 1.3 elimina algoritmos obsoletos, simplifica handshake y mejora rendimiento. Rechazar TLS 1.2 forza clientes modernos.  
+**Estándar:** RFC 8446 (TLS 1.3), NIST SP 800-52 Rev. 2 (Transition to TLS 1.3).  
+**Alternativa descartada:** TLS 1.2 + cipher suites modernas - aún tiene vulnerabilidades conocidas (POODLE, BEAST).  
+**Evidencia:** `docker/edge/nginx.conf` (ssl_protocols TLSv1.3), `scripts/verificar_despliegue.sh` (verifica TLS 1.3).
 
-- `POST /usuarios` - Crear usuario (solo admin)
-  - **Permisos:** Admin
-  - **Por qué:** Solo admin puede crear nuevas cuentas
-  - **Protección:** JWT token + RBAC (admin role)
-  - **Parámetros:** email, nombre, rol, password
+**Implementación:**
+- Edge Nginx escucha en puerto 8443 con certificados autofirmados (cert.pem, key.pem)
+- Certificados montados como volumen de solo lectura
+- ssl_protocols TLSv1.3 únicamente
+- Encabezados HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, CSP
 
-- `PATCH /usuarios/{id}/revocar` - Revocar usuario (solo admin)
-  - **Permisos:** Admin
-  - **Por qué:** Solo admin puede revocar accesos
-  - **Protección:** JWT token + RBAC (admin role)
-  - **Acción:** Marca usuario como inactivo (soft delete)
+### 3.3 Autenticación e Identidad
 
-**Pacientes:**
-- `GET /pacientes` - Listar pacientes (admin/doctor/administrativo)
-  - **Permisos:** Admin, Doctor, Administrativo
-  - **Por qué:** Doctores solo ven sus pacientes asignados, admin ve todos
-  - **Protección:** JWT token + RBAC
-  - **Filtro:** Doctores solo ven pacientes donde doctor_id = current_user.id
-  - **Respuesta:** Lista de pacientes con datos descifrados
+**Decisión:** JWT con algoritmo HS256, expiración corta (30 minutos), y verificación de estado activo en cada request.  
+**Por qué:** JWT es estándar para APIs REST (RFC 7519). HS256 es más simple que RSA y suficiente para llaves simétricas bien gestionadas. Expiración corta reduce riesgo de tokens robados. Verificación de estado activo permite revocación inmediata.  
+**Estándar:** RFC 7519 (JWT), RFC 8725 (JWT Best Current Practices), NIST SP 800-63B (authenticator lifecycle).  
+**Alternativa descartada:** Sesiones en servidor - no escala horizontalmente, requiere stateful backend.  
+**Evidencia:** `backend/app/auth.py` (JWT con HS256, expiración 30 min, verificación de activo), `backend/app/routers/auth.py` (login con bloqueo por intentos fallidos).
 
-- `GET /pacientes/{id}` - Obtener paciente específico (admin/doctor)
-  - **Permisos:** Admin, Doctor (si está asignado al paciente)
-  - **Por qué:** Doctores solo pueden ver pacientes que tienen asignados
-  - **Protección:** JWT token + RBAC + validación de asignación
-  - **Respuesta:** Paciente con datos descifrados
+**Implementación:**
+- Contraseñas hasheadas con bcrypt factor 12 (OWASP Password Storage Cheat Sheet)
+- Bloqueo tras 5 intentos fallidos (NIST SP 800-63B)
+- Rate limiting 10 req/min por IP en /auth/login (slowapi)
+- JWT decodificado con algorithms=["HS256"] explícito (RFC 8725)
+- get_current_user verifica activo=False y bloqueado_hasta en cada request
 
-- `POST /pacientes` - Crear paciente (admin/administrativo)
-  - **Permisos:** Admin, Administrativo
-  - **Por qué:** Solo personal autorizado puede registrar nuevos pacientes
-  - **Protección:** JWT token + RBAC
-  - **Encriptación:** Campos sensibles (nombre, diagnóstico, etc.) se encriptan antes de guardar
+### 3.4 Autorización (RBAC)
 
-- `PUT /pacientes/{id}` - Editar paciente (admin/doctor asignado)
-  - **Permisos:** Admin, Doctor (si está asignado al paciente)
-  - **Por qué:** Doctores solo pueden editar pacientes que tienen asignados
-  - **Protección:** JWT token + RBAC + validación de asignación
+**Decisión:** Control de acceso basado en roles con principio de mínimo privilegio. Rol administrativo NO ve datos clínicos (diagnóstico, medicación, resultado_test).  
+**Por qué:** Minimiza superficie de ataque de datos sensibles. Responde a inconsistencia en informe Entrega 1 (tabla decía administrativo ve diagnósticos, sección de seguridad decía que no).  
+**Estándar:** NIST SP 800-63B (access control), OWASP ASVS V2 (access control).  
+**Alternativa descartada:** ACLs (listas de control de acceso) por usuario - no escala, difícil de gestionar.  
+**Evidencia:** `backend/app/rbac.py` (decorador require_role), `backend/app/routers/pacientes.py` (filtrado por rol en backend, no solo frontend).
 
-- `DELETE /pacientes/{id}` - Borrar paciente (solo admin)
-  - **Permisos:** Admin
-  - **Por qué:** Solo admin puede eliminar registros (soft delete)
-  - **Protección:** JWT token + RBAC (admin role)
-  - **Acción:** Marca paciente como eliminado (soft delete)
+**Permisos por rol:**
+- **admin:** Acceso total
+- **doctor:** Solo pacientes asignados (doctor_id), ve todos los campos clínicos
+- **administrativo:** Todos los pacientes, pero solo datos básicos + facturación (NO ve diagnóstico, medicación, resultado_test)
+- **auditor:** Solo logs de auditoría, ningún dato de paciente
+- **paciente:** Solo su propio historial, puede exportar datos y ver quién accedió
 
-- `GET /pacientes/me` - Ver propio historial (solo paciente)
-  - **Permisos:** Paciente
-  - **Por qué:** Paciente solo puede ver su propio historial (principio de mínimo privilegio)
-  - **Protección:** JWT token + RBAC (paciente role)
-  - **Respuesta:** Paciente vinculado a la cuenta del usuario
+### 3.5 Trazabilidad (Logs de Auditoría)
 
-- `GET /pacientes/doctores` - Lista doctores disponibles (paciente/admin)
-  - **Permisos:** Paciente, Admin
-  - **Por qué:** Paciente necesita ver doctores disponibles para transferencia
-  - **Protección:** JWT token + RBAC
-  - **Respuesta:** Lista de doctores activos
+**Decisión:** Logs de auditoría inmutables mediante cadena de hashes SHA-256. Trigger anti-UPDATE/DELETE en tabla audit_logs. Rol de aplicación (APP_DB_USER) con solo INSERT y SELECT sobre audit_logs.  
+**Por qué:** Detecta alteración de logs (inmutabilidad). Previne insider threat que borre evidencia. Cumple con NIST SP 800-92 (logging) y Ley 29733 (auditoría).  
+**Estándar:** NIST SP 800-92 (Guide to Computer Security Log Management), OWASP Logging Cheat Sheet.  
+**Alternativa descartada:** Logs comunes sin integridad - pueden alterarse sin rastro.  
+**Evidencia:** `backend/app/audit.py` (cadena SHA-256 con pg_advisory_xact_lock), `backend/scripts/sql/proteger_audit_logs.sql` (triggers anti-UPDATE/DELETE), `scripts/verificar_cadena_logs.py` (verificación de integridad).
 
-- `PATCH /pacientes/{id}/transferir-doctor` - Transferir paciente (paciente propio/admin)
-  - **Permisos:** Paciente (si es su propio historial), Admin
-  - **Por qué:** Paciente puede controlar quién accede a su información (derechos ARCO)
-  - **Protección:** JWT token + RBAC + validación de propiedad
-  - **Acción:** Cambia doctor_id del paciente
-  - **Auditoría:** Registra transferencia con doctor_anterior, doctor_nuevo, timestamp
+**Implementación:**
+- Campos: seq (autoincremental único), hash_prev, hash_actual, usuario_id, accion, recurso, timestamp, ip_origen, detalle
+- log_action() usa pg_advisory_xact_lock para serializar escrituras
+- hash_actual = SHA-256(hash_prev | usuario_id | accion | recurso | timestamp | ip | detalle)
+- Usuario APP_DB_USER tiene solo INSERT y SELECT sobre audit_logs (no UPDATE ni DELETE)
 
-**Logs de Auditoría:**
-- `GET /audit-logs` - Listar logs (admin/auditor)
-  - **Permisos:** Admin, Auditor
-  - **Por qué:** Auditor necesita ver logs para verificar cumplimiento, admin para monitoreo
-  - **Protección:** JWT token + RBAC
-  - **Solo lectura:** Auditor no puede borrar logs
-  - **Respuesta:** Lista de logs de auditoría con detalles
+### 3.6 Continuidad (Backups y Recuperación)
 
-### 6.3 Configuración de HTTPS
+**Decisión:** Backups diarios cifrados con GPG AES-256, conservando últimos 7 días. Script de restauración a base separada para pruebas.  
+**Por qué:** Cumple con NIST SP 800-34 (contingency planning). Cifrado de backups protege datos en reposo si el medio de almacenamiento es comprometido.  
+**Estándar:** NIST SP 800-34 (Contingency Planning Guide), NIST SP 800-61 (Computer Security Incident Handling).  
+**Alternativa descartada:** Backups sin cifrado - vulnerable a robo de medio físico.  
+**Evidencia:** `scripts/backup.sh` (pg_dump + GPG), `scripts/restore.sh` (restauración a base separada), `docker/backup/Dockerfile`, `scripts/verificar_restauracion.py`.
 
-**Desarrollo:**
-- Protocolo: HTTP
-- Razón: Los navegadores rechazan certificados autofirmados
-- Puerto: 8000
+**Implementación:**
+- Backups nombrados backup_YYYY-MM-DD_HHMM.dump.gpg
+- Cifrado GPG con passphrase de BACKUP_PASSPHRASE
+- Rotación automática (conserva últimos 7, borra más viejos)
+- Restauración a base criptomed_restore_test (nunca sobre base real)
+- Verificación compara conteos de filas, cadena de hashes y descifrado de muestra
 
-**Producción:**
-- Protocolo: HTTPS
-- Certificados: cert.pem y key.pem
-- Puerto: 8443
-- Configuración: Variable de entorno `USE_HTTPS=true`
+### 3.7 Despliegue y Aislamiento (Docker)
 
-### 6.4 Deployment
+**Decisión:** Despliegue local con Docker Compose. Contenedores no-root, no-new-privileges, cap_drop ALL, read_only filesystem, tmpfs, límites de recursos. Redes internas (db_net: internal). Solo edge publica puerto.  
+**Por qué:** Aislamiento de red reduce superficie de ataque. Contenedores no-root limitan daño si comprometidos. read_only + tmpfs previene modificación de binarios. CIS Docker Benchmark recommends todos estos controles.  
+**Estándar:** CIS Docker Benchmark (4.1, 5.2, 5.8, 5.15, 5.17, 5.26), OWASP Docker Security Cheat Sheet.  
+**Alternativa descartada:** Despliegue en PaaS sin control de red y contenedores - no cumple CIS Benchmark.  
+**Evidencia:** `docker-compose.yml`, `docker/backend/Dockerfile`, `docker/edge/Dockerfile`, `docs/HARDENING_DOCKER.md`.
 
-**Local:**
-```bash
-# Iniciar Docker
-docker compose up -d
+**Implementación:**
+- Backend: python:3.12.7-slim, usuario app (UID 10001), read_only: true, tmpfs /tmp
+- PostgreSQL: postgres:16-alpine, cap_drop ALL + capacidades mínimas, tmpfs /tmp /var/run/postgresql
+- Edge: nginx:1.27-alpine, puerto 8443 publicado
+- Redes: app_net (no internal para edge), db_net (internal para PostgreSQL)
+- Security opt: no-new-privileges:true en backend, db, init
 
-# Iniciar backend
-source .venv/bin/activate
-cd backend
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+### 3.8 Cabeceras de Seguridad y CORS
 
-# Iniciar frontend
-cd frontend
-npm run dev
-```
+**Decisión:** Headers restrictivos (HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, CSP). CORS limitado a orígenes permitidos. /docs, /redoc deshabilitados en producción.  
+**Por qué:** Protege contra XSS, clickjacking, MIME sniffing. CORS restrictivo reduce riesgo de CSRF.  
+**Estándar:** OWASP ASVS V7 (HTTP Security), OWASP Secure Headers Project.  
+**Alternativa descartada:** CORS wildcard (*) - permitiría any-origin requests.  
+**Evidencia:** `backend/app/middleware/security_headers.py`, `docker/edge/nginx.conf`.
 
-**GitHub Pages (Frontend):**
-```bash
-# Build de frontend
-cd frontend
-npm run build
+**Implementación:**
+- Strict-Transport-Security: max-age=31536000; includeSubDomains
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- Referrer-Policy: no-referrer
+- Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+- Cross-Origin-Resource-Policy: same-origin (agregado tras hallazgo ZAP)
+- ALLOWED_ORIGINS: https://localhost:8443 (no wildcard)
 
-# Deploy a GitHub Pages
-ghp-import -n -p -f dist
-git push origin gh-pages
-```
+### 3.9 Política de Contraseñas
 
-**Producción (Backend):**
-- Deploy en VPS (AWS EC2, DigitalOcean, etc.)
-- Configurar Nginx como reverse proxy
-- Configurar HTTPS con Let's Encrypt
-- Configurar systemd para uvicorn
-- Configurar monitoreo (uptime, logs)
+**Decisión:** Longitud mínima 12 caracteres, máximo 72 bytes. Sin reglas de composición obligatorias. Sin expiración periódica obligatoria. Rechaza contraseñas comunes con zxcvbn (puntuación mínima 3). bcrypt factor 12.  
+**Por qué:** NIST SP 800-63B desaconseja reglas de composición y rotación periódica. zxcvbn detecta contraseñas comunes. Longitud + entropía es más efectivo que composición compleja.  
+**Estándar:** NIST SP 800-63B (Digital Identity Guidelines), OWASP Password Storage Cheat Sheet.  
+**Alternativa descartada:** Reglas de composición (mayúsculas, símbolos) - reduce memorización, no mejora seguridad significativamente.  
+**Evidencia:** Función validate_password_policy en `backend/app/routers/auth.py` (o middleware dedicado), bcrypt factor 12 en requirements.txt.
 
 ---
 
-## 7. Herramientas de Análisis de Seguridad
+## 4. Funcionalidad Clave: Control del Paciente
 
-### 7.1 Herramientas de Análisis Estático (SAST)
+### 4.1 Autonomía del Paciente
 
-**Bandit (Python)**
-- **Propósito:** Detectar vulnerabilidades comunes en código Python
-- **Uso propuesto:** `bandit -r backend/`
-- **Qué detecta:** Hardcoded secrets, uso inseguro de funciones, SQL injection potencial
-- **Estado:** Propuesto para implementación en CI/CD
+**Decisión:** Paciente puede ver su historial (GET /pacientes/me), ver quién accedió (GET /pacientes/me/accesos), exportar sus datos (GET /pacientes/me/export), y transferir a otro doctor (PATCH /pacientes/{id}/transferir-doctor).  
+**Por qué:** Responde al principio de autonomía del paciente (bioética) y derechos ARCO de Ley 29733 (acceso, portabilidad, control).  
+**Estándar:** Ley 29733 Art. 14 (derechos ARCO), GDPR Art. 20 (portabilidad).  
+**Alternativa descartada:** Solo admin puede transferir - viola autonomía del paciente.  
+**Evidencia:** `backend/app/routers/pacientes.py` (líneas 92-250), frontend con confirmación explícita.
 
-**SonarQube**
-- **Propósito:** Análisis continuo de calidad y seguridad del código
-- **Uso propuesto:** Integración en pipeline de CI/CD
-- **Qué detecta:** Code smells, bugs, vulnerabilidades, duplicación de código
-- **Estado:** Propuesto para implementación futura
+**Implementación:**
+- GET /pacientes/me: Retorna historial descifrado del paciente autenticado
+- GET /pacientes/me/accesos: Lista paginada de accesos con nombre profesional, rol, timestamp
+- GET /pacientes/me/export: JSON con todos los datos descifrados, registrado como acción exportacion
+- PATCH /pacientes/{id}/transferir-doctor: Solo paciente puede transferir su propio historial, requiere confirmación explícita
 
-### 7.2 Herramientas de Análisis Dinámico (DAST)
+### 4.2 Consentimiento
 
-**OWASP ZAP (Zed Attack Proxy)**
-- **Propósito:** Escaneo automatizado de vulnerabilidades web
-- **Uso propuesto:** 
-  ```bash
-  zap-baseline.py -t https://cripto-med.onrender.com
-  ```
-- **Qué detecta:** XSS, SQL injection, CSRF, configuración insegura de headers
-- **Estado:** Propuesto para pruebas pre-producción
+**Decisión:** Campos consentimiento_fecha y consentimiento_version en modelo Paciente.  
+**Por qué:** Cumple con Ley 29733 (consentimiento informado). Permite trazabilidad de cambios en políticas.  
+**Estándar:** Ley 29733 Art. 5 (medidas de seguridad, consentimiento).  
+**Alternativa descartada:** Sin registro de consentimiento - no hay evidencia de cumplimiento.  
+**Evidencia:** `backend/app/models.py` (líneas 75-76), `docs/inventario_datos.md`.
 
-**SQLMap**
-- **Propósito:** Pruebas de inyección SQL
-- **Uso propuesto:** `sqlmap -u "https://cripto-med.onrender.com/pacientes/1" --batch`
-- **Qué detecta:** SQL injection en endpoints con parámetros
-- **Estado:** Propuesto para pruebas de penetración controladas
+**Limitación actual:** Consentimiento se asume obtenido en proceso físico (papel). Mejora futura: workflow digital de consentimiento explícito.
 
-### 7.3 Herramientas de Análisis de Dependencias
+### 4.3 Acceso de Emergencia (Break-Glass)
 
-**Safety**
-- **Propósito:** Detectar dependencias con vulnerabilidades conocidas
-- **Uso propuesto:** `safety check backend/requirements.txt`
-- **Qué detecta:** CVEs en paquetes Python
-- **Estado:** Propuesto para implementación en CI/CD
-
-**npm audit**
-- **Propósito:** Detectar vulnerabilidades en dependencias JavaScript
-- **Uso propuesto:** `npm audit` en directorio frontend
-- **Qué detecta:** CVEs en paquetes npm
-- **Estado:** Propuesto para implementación en CI/CD
-
-### 7.4 Plan de Implementación
-
-**Fase 1 (Actual):**
-- Verificar manualmente que no hay hardcoded secrets
-- Revisar código SQL para detectar injection potencial
-- Verificar configuración de CORS y headers
-
-**Fase 2 (Corto plazo):**
-- Implementar Bandit en CI/CD
-- Ejecutar OWASP ZAP en staging
-- Implementar Safety y npm audit
-
-**Fase 3 (Mediano plazo):**
-- Implementar SonarQube para análisis continuo
-- Integrar pruebas de seguridad en pipeline
-- Implementar escaneos regulares con OWASP ZAP
-
-### 7.5 Extensión: Auto-Gestión de Accesos por Parte del Paciente
-
-**Nueva funcionalidad implementada:** Login de paciente y transferencia de doctor
-
-**Descripción:**
-Se implementó un mecanismo de auto-gestión de accesos por parte del paciente que refuerza el principio de mínimo privilegio y se alinea con los derechos ARCO reconocidos en la Ley N° 29733.
-
-**Características:**
-- **Rol paciente:** Nuevo rol en el sistema que permite a los pacientes iniciar sesión y acceder a su propio historial médico
-- **Auto-gestión de accesos:** El paciente puede transferir el acceso a su historial de un doctor a otro sin intervención de un administrador
-- **Trazabilidad completa:** Cada transferencia queda registrada en el log de auditoría con:
-  - Doctor anterior
-  - Doctor nuevo
-  - Usuario que ejecutó la acción (el propio paciente)
-  - Timestamp
-  - IP address cuando disponible
-
-**Diseño de la transferencia:**
-```
-┌─────────────┐         ┌──────────────┐         ┌─────────────┐
-│  Paciente   │────────▶│  Backend     │────────▶│   Doctor    │
-│  (Usuario)  │  POST   │  /pacientes/ │  UPDATE │  Nuevo      │
-│             │  /me    │  /transferir │         │  Asignado   │
-└─────────────┘         └──────────────┘         └─────────────┘
-                               │
-                               ▼
-                        ┌──────────────┐
-                        │  Audit Log   │
-                        │  (Transfer   │
-                        │   Action)    │
-                        └──────────────┘
-```
-
-**Modelo de datos actualizado:**
-- `Paciente.usuario_id`: FK opcional hacia `usuarios.id` para vincular paciente con su cuenta de login
-- `AccionEnum.transferencia`: Nuevo valor en el enum de acciones de auditoría
-- `AuditLog.detalle`: Campo extra para guardar el detalle de la transferencia (doctor_anterior, doctor_nuevo)
-
-**Endpoints implementados:**
-- `GET /pacientes/me`: Retorna el historial del paciente autenticado
-- `GET /pacientes/doctores`: Lista doctores disponibles para transferencia
-- `PATCH /pacientes/{id}/transferir-doctor`: Transfiere el paciente a otro doctor
-
-**Permisos:**
-- Admin puede transferir cualquier paciente
-- Paciente puede transferir su propio historial
-- Otros roles no pueden transferir pacientes
-
-**Cumplimiento normativo:**
-Esta funcionalidad refuerza el cumplimiento con la Ley N° 29733, específicamente:
-- **Derecho de acceso:** El paciente puede acceder a su propia información
-- **Derecho de rectificación:** El paciente puede controlar quién accede a su información
-- **Derecho de oposición:** El paciente puede cambiar el doctor asignado
-- **Principio de mínimo privilegio:** Solo el doctor actualmente asignado tiene acceso al historial completo
-
-**Demostración en vivo:**
-El flujo de demostración incluye:
-1. Login como Doctor A → mostrar solo sus pacientes asignados
-2. Login como Doctor B → verificar que NO ve al paciente demo
-3. Login como Paciente Demo → ver su historial y doctor actual
-4. Paciente transfiere a Doctor B
-5. Login como Doctor B → ahora SÍ ve al paciente demo
-6. Login como Doctor A → ya NO ve al paciente demo
-7. Login como Auditor → ver log de transferencia con detalle completo
+**Decisión:** POST /pacientes/{id}/acceso-emergencia permite a doctor no asignado acceder por 30 minutos con justificación ≥20 caracteres.  
+**Por qué:** Balancea seguridad estricta con deber de asistencia médica en emergencias. Mecanismo auditado y transparente.  
+**Estándar:** NIST SP 800-92 (logging de eventos de seguridad), principios de bioética (beneficencia vs. no maleficencia).  
+**Alternativa descartada:** Sin mecanismo de emergencia - puede costar vidas en situaciones críticas.  
+**Evidencia:** `backend/app/routers/pacientes.py` (líneas 332-394), modelo AccesoEmergencia en `models.py`.
 
 ---
 
-## 8. Lecciones Aprendidas
+## 5. Verificación con Herramientas
 
-### 7.1 Lecciones Técnicas
+### 5.1 Escaneo Inicial ("Before")
 
-**Lección 1: Docker Compose simplifica setup pero requiere configuración correcta**
-- **Problema:** Conflicto de puertos con PostgreSQL instalado por Homebrew
-- **Solución:** Cambiar puerto de host de 5432 a 5433
-- **Aprendizaje:** Verificar puertos en uso antes de configurar Docker Compose
+**Decisión:** Ejecutar suite multi-herramienta (Bandit, pip-audit, npm audit, Gitleaks, Hadolint, Trivy, testssl.sh, OWASP ZAP) antes de remediación.  
+**Por qué:** Cumple rúbrica de Entrega 2 (aplicar herramienta de análisis de seguridad, no solo describirla). Establece línea base de postura de seguridad.  
+**Estándar:** OWASP ASVS (security testing), CIS Docker Benchmark (container scanning).  
+**Evidencia:** `scripts/security_scan.sh`, `reports/before/` (hallazgos iniciales), `docs/hallazgos.md`.
 
-**Lección 2: Certificados autofirmados causan errores en navegadores**
-- **Problema:** Navegadores rechazan certificados autofirmados con error NET::ERR_CERT_AUTHORITY_INVALID
-- **Solución:** Usar HTTP en desarrollo, HTTPS en producción
-- **Aprendizaje:** Diferenciar entre desarrollo y producción en configuración
+**Resultados iniciales:**
+- Total hallazgos: 3,596
+- Bandit: 18 (2 remediales de inyección SQL, 16 falsos positivos)
+- pip-audit: 45 (vulnerabilidades en dependencias Python)
+- npm audit: 0 (frontend limpio)
+- Gitleaks: 0 (sin secretos en repo)
+- Hadolint: 5 (buenas prácticas Docker)
+- Trivy: 3,411 (vulnerabilidades en imágenes base OS)
+- testssl.sh: 0 (TLS 1.3 correcto)
+- OWASP ZAP: 7 (cabecera CORP faltante, resto informativo)
 
-**Lección 3: JWT requiere configuración correcta de headers**
-- **Problema:** `/auth/me` retornaba 401 después de login exitoso
-- **Solución:** Configurar Authorization header manualmente después de login
-- **Aprendizaje:** Verificar que headers se configuran antes de requests protegidos
+### 5.2 Remediación
 
-**Lección 4: React Router requiere estructura de rutas correcta**
-- **Problema:** Dashboard se mostraba vacío después de login
-- **Solución:** Verificar que `<Outlet />` se use correctamente en Layout
-- **Aprendizaje:** Verificar estructura de rutas y componentes anidados
+**Decisión:** Corregir hallazgos marcados "corregir" en docs/hallazgos.md, empezando por severidad alta y media.  
+**Por qué:** Reduce superficie de ataque. Demuestra proceso de mejora continua.  
+**Estándar:** OWASP ASVS (vulnerability management).  
+**Evidencia:** Commits por grupo de hallazgos, `docs/comparativa_antes_despues.md`.
 
-### 7.2 Lecciones de Seguridad
+**Correcciones principales:**
+- SEC-BANDIT-01/02: Inyección SQL potencial en verificar_restauracion.py → reemplazado por consultas estáticas con whitelist
+- SEC-PIP-03/04: python-multipart y python-dotenv vulnerables → actualizados a versiones parchadas
+- SEC-NPM-01: follow-redirects vulnerable → actualizado en package-lock.json
+- SEC-HADO-02/03/04: Buenas prácticas Docker (--no-install-recommends, UID numérico, CMD JSON) → corregido en Dockerfile
+- SEC-ZAP-01: Cabecera Cross-Origin-Resource-Policy faltante → agregada en middleware y nginx
 
-**Lección 1: Encriptación no es suficiente sin control de acceso**
-- **Observación:** Aunque los datos estén encriptados, un admin malintencionado puede descifrarlos
-- **Aprendizaje:** Encriptación + RBAC + Auditoría = Defensa en profundidad
+### 5.3 Escaneo Final ("After")
 
-**Lección 2: Logs de auditoría deben ser inmutables**
-- **Observación:** Si hay endpoint para borrar logs, un admin malintencionado puede ocultar sus acciones
-- **Aprendizaje:** No proporcionar endpoint de borrado de logs, usar soft delete
+**Decisión:** Re-ejecutar suite multi-herramienta tras remediación y comparar resultados.  
+**Por qué:** Verifica efectividad de correcciones. Muestra mejora medible en postura de seguridad.  
+**Estándar:** OWASP ASVS (continuous security testing).  
+**Evidencia:** `scripts/security_scan.sh after`, `reports/after/`, `docs/comparativa_antes_despues.md`.
 
-**Lección 3: HTTPS es crítico para producción**
-- **Observación:** HTTP en desarrollo es aceptable, pero HTTPS es necesario en producción
-- **Aprendizaje:** Documentar diferencias entre desarrollo y producción
+**Resultados finales:**
+- Total hallazgos: 1,396 (reducción del 61.18%)
+- Bandit: 16 (2 remediales eliminados, 16 falsos positivos permanecen)
+- pip-audit: 29 (16 CVEs eliminados)
+- npm audit: 0 (mantenido limpio)
+- Gitleaks: 0 (sin cambios, ya limpio)
+- Hadolint: 2 (3 reglas remediadas)
+- Trivy: 1,236 (reducción masiva por --no-install-recommends y actualización de dependencias)
+- testssl.sh: 0 (TLS 1.3 correcto)
+- OWASP ZAP: 2 (CORP corregido, 2 informativos permanecen)
 
-**Lección 4: Respuesta a incidentes requiere práctica**
-- **Observación:** Sin simulacros, el tiempo de respuesta será mayor
-- **Aprendizaje:** Realizar simulacros de incidentes regularmente
-
-### 7.3 Lecciones de Proyecto
-
-**Lección 1: Documentación es tan importante como código**
-- **Observación:** Sin documentación, es difícil para otros entender el sistema
-- **Aprendizaje:** Documentar arquitectura, decisiones, y procedimientos
-
-**Lección 2: Pruebas incrementales reducen tiempo de depuración**
-- **Observación:** Probar todo al final hace difícil identificar la causa del problema
-- **Aprendizaje:** Probar cada componente incrementalmente
-
-**Lección 3: Compliance con leyes requiere investigación**
-- **Observación:** Ley N° 29733 tiene requisitos específicos que deben cumplirse
-- **Aprendizaje:** Investigar leyes y regulaciones antes de implementar
-
-**Lección 4: Seguridad es un proceso continuo**
-- **Observación:** Seguridad no es un proyecto de una sola vez
-- **Aprendizaje:** Seguridad requiere mejora continua, actualización, y monitoreo
+**Conclusión:** Postura de seguridad significativamente reforzada. Riesgos residuales aceptados con justificación documentada.
 
 ---
 
-## 9. Retrospectiva del Proyecto
+## 6. Riesgos e Incidentes
 
-### 9.1 Qué Salió Bien
+### 6.1 Matriz de Riesgos (DPIA)
 
-**1. Stack tecnológico adecuado**
-- FastAPI es moderno y fácil de usar
-- React permite desarrollo rápido de frontend
-- PostgreSQL es estándar y robusto
-- Docker simplifica deployment
+**Decisión:** Identificar 12 riesgos para titulares con probabilidad (1-5), impacto (1-5), riesgo inherente (P×I), medidas de mitigación y riesgo residual.  
+**Por qué:** Cumple GDPR Art. 35 (DPIA) e ISO/IEC 29134. Permite análisis sistemático de riesgos para derechos y libertades de titulares.  
+**Estándar:** GDPR Art. 35 (DPIA), ISO/IEC 29134 (privacy impact assessment).  
+**Evidencia:** `docs/DPIA.md`, `docs/inventario_datos.md`.
 
-**2. Implementación de seguridad en capas**
-- Encriptación en reposo ✅
-- Encriptación en transporte ✅
-- Hashing de contraseñas ✅
-- RBAC ✅
-- Logs de auditoría ✅
+**Riesgos principales:**
+- R-01: Fuga masiva de base de datos (riesgo residual: 2, mitigado por AES-256-GCM + redes internas)
+- R-02: Acceso indebido personal interno (riesgo residual: 2, mitigado por RBAC + logs inmutables)
+- R-03: Reidentificación por cuasi-identificadores (riesgo residual: 2, mitigado por cifrado de nombre)
+- R-04: Transferencia a doctor equivocado (riesgo residual: 1, mitigado por confirmación explícita)
+- R-05: Indisponibilidad en emergencia (riesgo residual: 2, mitigado por break-glass + backups)
+- R-06: Retención excesiva (riesgo residual: 3, pendiente política de retención)
+- R-07: Uso secundario no autorizado (riesgo residual: 1, mitigado por logs inmutables)
+- R-08: Error de mapeo CIE-10 (riesgo residual: 2, mitigado por validación FK)
+- R-09: Pérdida de llaves de cifrado (riesgo residual: 1, mitigado por rotación + backups separados)
+- R-10: Ataque fuerza bruta (riesgo residual: 2, mitigado por bloqueo + rate limiting)
+- R-11: Intercepción en tránsito (riesgo residual: 1, mitigado por TLS 1.3)
+- R-12: Pérdida de integridad de logs (riesgo residual: 1, mitigado por cadena SHA-256 + triggers)
 
-**3. Documentación completa**
-- Documentación de arquitectura
-- Documentación de seguridad
-- Documentación de procedimientos
-- Documentación de recuperación
+**Conclusión:** Riesgo residual general bajo-medio. Punto más alto: R-06 (retención excesiva) requiere implementación de política de retención.
 
-**4. Cumplimiento con Ley N° 29733**
-- Medidas técnicas implementadas
-- Medidas organizativas documentadas
-- Procedimientos de notificación definidos
+### 6.2 Plan de Respuesta a Incidentes
 
-### 9.2 Qué Podría Mejorar
+**Decisión:** Procedimientos de notificación a ANPD dentro de 48 horas de tomar conocimiento del incidente e informar a titulares afectados (Reglamento D.S. 016-2024-JUS). Si incidente es en entorno digital, reportar también al Centro Nacional de Seguridad Digital.  
+**Por qué:** Cumple Ley 29733 Art. 10 (notificación de incidentes) y Reglamento D.S. 016-2024-JUS.  
+**Estándar:** Ley 29733 Art. 10, Reglamento D.S. 016-2024-JUS, NIST SP 800-61 (incident handling).  
+**Evidencia:** Procedimientos documentados en docs/FINAL_REPORT.md (sección 2.3), referencias a ANPD.
 
-**1. Testing automatizado**
-- No hay tests unitarios
-- No hay tests de integración
-- No hay tests de seguridad automatizados
-- **Mejora:** Implementar pytest, tests de seguridad automatizados
-
-**2. CI/CD pipeline**
-- No hay pipeline automatizado
-- Deploy es manual
-- No hay validación automática
-- **Mejora:** Implementar GitHub Actions, deployment automatizado
-
-**3. Frontend más robusto**
-- UI básica, sin diseño
-- No hay validación de formularios
-- No hay manejo de errores robusto
-- **Mejora:** Implementar validación, manejo de errores, diseño
-
-**4. Monitoreo y alertas**
-- No hay monitoreo de uptime
-- No hay alertas de errores
-- No hay monitoreo de seguridad
-- **Mejora:** Implementar Sentry, Uptime monitoring, alertas
-
-### 9.3 Desafíos Encontrados
-
-**1. Configuración de Docker y PostgreSQL**
-- Conflicto de puertos con Homebrew
-- Roles de PostgreSQL no funcionaban
-- Volumen Docker persistía datos incorrectos
-- **Solución:** Cambiar puerto, limpiar volúmenes, recrear contenedor
-
-**2. Configuración de HTTPS**
-- Navegadores rechazan certificados autofirmados
-- Axios rechaza certificados autofirmados
-- Configuración de SSL en uvicorn
-- **Solución:** Usar HTTP en desarrollo, HTTPS en producción
-
-**3. Implementación de JWT en frontend**
-- Token no se configuraba en header
-- `/auth/me` retornaba 401
-- Sincronización de token entre login y requests
-- **Solución:** Configurar header manualmente, usar useEffect
-
-**4. Estructura de rutas en React Router**
-- Dashboard se mostraba vacío
-- `<Outlet />` no funcionaba correctamente
-- Estructura de rutas anidada
-- **Solución:** Verificar estructura de rutas, usar `<Outlet />` correctamente
-
-### 9.4 Lecciones para el Próximo Proyecto
-
-**1. Probar cada componente incrementalmente**
-- No esperar hasta el final para probar
-- Probar backend antes de frontend
-- Probar autenticación antes de RBAC
-
-**2. Documentar mientras se desarrolla**
-- No dejar documentación para el final
-- Documentar decisiones arquitectónicas
-- Documentar problemas y soluciones
-
-**3. Diferenciar desarrollo y producción**
-- Configuración diferente para cada entorno
-- Usar variables de entorno
-- Documentar diferencias
-
-**4. Implementar testing desde el inicio**
-- No esperar hasta el final para implementar tests
-- Implementar tests unitarios mientras se desarrolla
-- Implementar tests de integración después
-
-**5. Planificar contingencias desde el inicio**
-- Script de backup desde el inicio
-- Plan de recuperación desde el inicio
-- Procedimientos de respuesta a incidentes desde el inicio
+**Etapas:** Detección → Contención → Erradicación → Recuperación → Post-Incidente → Notificación (ANPD + titulares).
 
 ---
 
-## 9. Conclusión
+## 7. Privacidad y Ética (Resumen de DPIA)
 
-CriptoMed es un sistema funcional que demuestra medidas de seguridad de datos aplicadas a un caso de uso real (gestión de historiales médicos en pequeñas clínicas). El sistema implementa:
+### 7.1 Principios de Privacidad
 
-- ✅ Encriptación de datos sensibles en reposo (AES-256)
-- ✅ Encriptación de datos en transporte (HTTPS)
-- ✅ Hashing de contraseñas (bcrypt)
-- ✅ Control de acceso basado en roles (RBAC)
-- ✅ Logs de auditoría inmutables
-- ✅ Certificados digitales autofirmados
-- ✅ Cumplimiento con Ley Peruana N° 29733
-- ✅ Plan de recuperación ante desastres
-- ✅ Procedimientos de respuesta a incidentes
-- ✅ Recomendaciones futuras de seguridad
+**Decisión:** Aplicar principios de minimización, finalidad, consentimiento, transparencia, e integridad y confidencialidad.  
+**Por qué:** Cumple GDPR Art. 5 (principios de protección de datos) y Ley 29733 Art. 5 (medidas de seguridad).  
+**Estándar:** GDPR Art. 5, Ley 29733 Art. 5, ISO/IEC 29134.  
+**Evidencia:** `docs/inventario_datos.md` (justificación de cada campo), `docs/etica_privacidad.md`.
 
-El proyecto cumple con los requerimientos técnicos de la rúbrica del curso DS3031 y demuestra un entendimiento práctico de seguridad de datos aplicada a un caso de uso real.
+**Implementación:**
+- Minimización: Solo campos necesarios para atención médica, gestión administrativa y cumplimiento legal
+- Finalidad: Cada campo tiene finalidad clara y documentada
+- Consentimiento: Campos consentimiento_fecha y consentimiento_version
+- Transparencia: Paciente puede ver quién accedió a sus datos
+- Integridad: Logs inmutables con cadena SHA-256
+- Confidencialidad: Cifrado AES-256-GCM + TLS 1.3 + RBAC
 
-**Logros:**
-- Sistema funcional con backend, frontend, y base de datos
-- Seguridad en capas (defense in depth)
-- Documentación completa de arquitectura y procedimientos
-- Cumplimiento con normativa peruana
+### 7.2 Consideraciones Éticas
 
-**Limitaciones:**
-- Testing automatizado no implementado
-- Frontend básico sin diseño
-- Monitoreo y alertas no implementados
-- No hay CI/CD pipeline
+**Decisión:** Balancear autonomía del paciente con obligación legal de conservar historias clínicas. Implementar acceso de emergencia (break-glass) auditado. Usar datos sintéticos en desarrollo.  
+**Por qué:** Responde a dilemas éticos reales en salud (autonomía vs. continuidad de atención, seguridad vs. emergencia).  
+**Estándar:** Principios de bioética (autonomía, beneficencia, no maleficencia, justicia).  
+**Evidencia:** `docs/etica_privacidad.md`, acceso de emergencia en `backend/app/routers/pacientes.py`.
 
-**Recomendaciones para el futuro:**
-- Implementar MFA
-- Implementar HSM
-- Implementar SIEM
-- Implementar WAF
-- Implementar testing automatizado
-- Implementar CI/CD pipeline
+**Tensiones éticas:**
+- Derecho de cancelación vs. obligación de conservar historia clínica [VERIFICAR plazo según norma técnica MINSA]
+- Seguridad estricta vs. atención oportuna en emergencias (resuelto con break-glass)
 
-El proyecto demuestra que es posible implementar medidas de seguridad efectivas en un sistema de gestión de datos sensibles, incluso con recursos limitados, y que la seguridad de datos es un proceso continuo que requiere mejora constante.
+### 7.3 Transparencia sobre Uso de IA Generativa
 
----
+**Decisión:** Declarar explícitamente qué se generó con IA (código, documentación, scripts) y cómo se revisó (revisión humana, pruebas, escaneos).  
+**Por qué:** Transparencia sobre uso de IA es éticamente necesario. No ocultar uso de herramientas de IA.  
+**Evidencia:** `docs/etica_privacidad.md` (sección 6).
 
-## 10. Anexos
+**Generado con IA:**
+- Código: crypto.py (AES-256-GCM), audit.py (cadena SHA-256), rotate_keys.py, Dockerfiles, esqueletos de endpoints
+- Documentación: inventario_datos.md, DPIA.md, flujo_datos.mmd, etica_privacidad.md, hallazgos.md, comparativa_antes_despues.md
+- Scripts: security_scan.sh, verificar_despliegue.sh
 
-### 10.1 Capturas de Pantalla
-
-**[Captura 1: Login de CriptoMed]**
-- Screenshot de página de login
-- Usuario: Ver credenciales en .env.example o docs/SETUP_GUIDE.md
-
-**[Captura 2: Dashboard de CriptoMed]**
-- Screenshot de dashboard con lista de pacientes
-- Mostrando campos descifrados
-
-**[Captura 3: Logs de Auditoría]**
-- Screenshot de tabla de logs de auditoría
-- Mostrando usuario, acción, recurso, timestamp
-
-**[Captura 4: Base de Datos PostgreSQL]**
-- Screenshot de consulta SQL mostrando campos encriptados
-- Campos sensibles en texto cifrado
-
-### 10.2 Referencias
-
-**Leyes y Regulaciones:**
-- Ley Peruana N° 29733 - Ley de Protección de Datos Personales
-- Reglamento de la Ley N° 29733
-- ISO 27001 - Information Security Management
-- NIST Cybersecurity Framework
-
-**Librerías y Frameworks:**
-- FastAPI: https://fastapi.tiangolo.com/
-- React: https://react.dev/
-- PostgreSQL: https://www.postgresql.org/
-- Docker: https://www.docker.com/
-- cryptography: https://cryptography.io/
-- passlib: https://passlib.readthedocs.io/
-- python-jose: https://python-jose.readthedocs.io/
-
-**Standards:**
-- OWASP Top 10: https://owasp.org/www-project-top-ten/
-- NIST 800-63B: Digital Identity Guidelines
-- PCI DSS: Payment Card Industry Data Security Standard
-
-### 10.2 Capturas de Pantalla
-
-**Screenshot 1: Login de CriptoMed**
-![Login](images/login.png)
-- Pantalla de login con formulario email/contraseña
-- Usuarios de prueba listados para demostración
-
-**Screenshot 2: Dashboard del Admin**
-![Dashboard Admin](images/admin_sistema_dashboard.png)
-- Dashboard del administrador con lista de pacientes
-- Estadísticas: Total de pacientes, pacientes activos, rol
-- Búsqueda y filtros por estado
-
-**Screenshot 3: Logs de Auditoría del Admin**
-![Logs Admin](images/admin_sistema_logs.png)
-- Logs de auditoría visibles para el administrador
-- Tabla con usuario, acción, recurso, timestamp, IP
-- Paginación para navegar logs
-
-**Screenshot 4: Dashboard del Administrativo**
-![Dashboard Administrativo](images/admin_clinica_dashboard.png)
-- Dashboard del administrativo con lista de pacientes
-- Permisos: datos básicos y facturación, sin diagnóstico detallado
-
-**Screenshot 5: Dashboard del Doctor**
-![Dashboard Doctor](images/doctor_dashboard.png)
-- Dashboard del doctor con lista de pacientes
-- Cards de pacientes con información relevante
-
-**Screenshot 6: Auditor sin acceso a Dashboard**
-![Dashboard Auditor Denegado](images/auditor_dashboard_denegado.png)
-- El auditor no puede acceder al dashboard (RBAC funcionando)
-- Solo puede acceder a logs de auditoría
-
-**Screenshot 7: Logs de Auditoría del Auditor**
-![Logs Auditor](images/auditor_logs.png)
-- Logs de auditoría visibles para el auditor
-- Solo lectura, sin posibilidad de modificar
-
-**Screenshot 8: Headers JWT en Network Tab**
-![JWT Headers](images/JWT_logs.png)
-- Network tab del navegador mostrando headers
-- Header `Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
-- Demuestra que JWT se envía correctamente en cada request
-
-### 10.3 Código Fuente
-
-**Repositorio:** [URL de GitHub]
-**Branch:** main
-**Licencia:** MIT
+**Revisión:**
+- Revisión humana línea por línea
+- 65 pruebas unitarias ejecutadas exitosamente
+- Escaneos de seguridad antes/después (reducción 61.18%)
+- Verificación funcional manual
 
 ---
 
-**Fin del Informe**
+## 8. Lecciones Aprendidas y Retrospectiva
+
+### 8.1 Lecciones Técnicas
+
+**Lección 1:** Docker Compose simplifica setup pero requiere configuración correcta de puertos, redes y permisos. Conflicto con PostgreSQL local en puerto 5432 resolvió cambiando a host sin puerto expuesto.
+
+**Lección 2:** AES-256-GCM con AAD previene copia de valores cifrados entre registros, pero requiere que UUID del paciente se genere antes de cifrar (limitación de diseño resuelta).
+
+**Lección 3:** Cadena de hashes SHA-256 requiere serialización con pg_advisory_xact_lock para evitar condiciones de carrera en escrituras concurrentes.
+
+**Lección 4:** Nginx-unprivileged tuvo problemas persistentes de permisos con tmpfs y read-only. Se cambió a nginx estándar alpine endureciendo solo lo posible (documentado como limitación).
+
+### 8.2 Lecciones de Seguridad
+
+**Lección 1:** Cifrado sin control de acceso es insuficiente. Un admin malintencionado puede descifrar todo. Necesita RBAC + auditoría (defensa en profundidad).
+
+**Lección 2:** Logs de auditoría deben ser inmutables. Si hay endpoint para borrar logs, un insider puede ocultar evidencia. Solución: triggers anti-UPDATE/DELETE + rol de aplicación con solo INSERT/SELECT.
+
+**Lección 3:** Verificación con herramientas es crítica. Hallazgos de ZAP (CORP header) y Bandit (inyección SQL) no se habrían detectado manualmente.
+
+**Lección 4:** Rotación de llaves requiere procedimiento documentado. Script rotate_keys.py con --dry-run permite simulación antes de ejecución en vivo.
+
+### 8.3 Lecciones de Proyecto
+
+**Lección 1:** Documentación debe escribirse mientras se desarrolla, no al final. docs/inventario_datos.md y docs/DPIA.md basados en código real son más precisos que especificaciones abstractas.
+
+**Lección 2:** Migración de despliegue (Render → Docker) fue compleja pero valiosa. Docker permite reproducibilidad completa y control de seguridad que PaaS no ofrece.
+
+**Lección 3:** Referencias legales deben verificarse en fuentes oficiales. Marcadores [VERIFICAR] en DPIA para Reglamento D.S. 016-2024-JUS y norma técnica MINSA requieren confirmación manual.
+
+**Lección 4:** Seguridad es proceso continuo, no proyecto de una sola vez. Escaneos regulares, actualización de dependencias y revisión de arquitectura son necesarios.
+
+### 8.4 Retrospectiva del Proyecto
+
+**Qué salió bien:**
+- Stack tecnológico adecuado (FastAPI, React, PostgreSQL, Docker)
+- Implementación de seguridad en capas (cifrado, RBAC, auditoría, TLS)
+- Verificación con herramientas (reducción 61.18% en hallazgos)
+- DPIA completa con análisis de riesgos
+- Funcionalidad de paciente (autonomía, portabilidad, control de accesos)
+
+**Qué podría mejorar:**
+- Política de retención y anonimización (pendiente)
+- Canal formal de ejercicio de derechos del titular
+- Dashboard para Oficial de Datos Personales
+- Workflow digital de consentimiento explícito
+- CI/CD pipeline para escaneos automáticos
+
+**Desafíos principales:**
+- Configuración de Docker (permisos, redes, tmpfs)
+- Migración de Fernet a AES-256-GCM
+- Cadena de hashes SHA-256 (serialización con advisory lock)
+- Escaneos de seguridad (configuración de ZAP con JWT, testssl.sh con certificado autofirmado)
+
+---
+
+## 9. Trabajo Futuro y Recomendaciones
+
+### 9.1 Recomendaciones de Corto Plazo
+
+1. **Implementar política de retención y anonimización:** Conforme a [VERIFICAR] plazo de norma técnica MINSA, anonimizar datos personales después del plazo legal conservando datos clínicos anonimizados para investigación.
+
+2. **Canal formal de ejercicio de derechos:** Implementar módulo de gestión de solicitudes de derechos del titular con tracking de tiempos de respuesta conforme a Reglamento D.S. 016-2024-JUS.
+
+3. **Workflow digital de consentimiento:** Implementar pantalla de consentimiento digital con aceptación explícita antes de registrar datos.
+
+4. **Dashboard para Oficial de Datos Personales:** Crear vista específica para monitorear accesos anómalos, gestionar solicitudes de derechos y coordinar respuestas a incidentes.
+
+### 9.2 Recomendaciones de Mediano Plazo
+
+1. **CI/CD pipeline:** Implementar GitHub Actions para ejecutar escaneos de seguridad (Bandit, Trivy, ZAP) automáticamente en cada commit.
+
+2. **MFA (Autenticación Multifactor):** Agregar TOTP (Time-based One-Time Password) para login de roles sensibles (admin, doctor).
+
+3. **HSM (Hardware Security Module):** Para protección de llaves de cifrado en producción.
+
+4. **SIEM (Security Information and Event Management):** Para correlación de logs y detección de anomalías en tiempo real.
+
+### 9.3 Recomendaciones de Largo Plazo
+
+1. **Zero Trust Architecture:** Verificación continua de identidad y dispositivo, no solo en el perímetro.
+
+2. **WAF (Web Application Firewall):** Para protección contra ataques web en el edge.
+
+3. **DLP (Data Loss Prevention):** Para detección de fugas de datos en tiempo real.
+
+4. **Escaneo continuo de imágenes:** Integrar Trivy en CI/CD para escanear vulnerabilidades en imágenes Docker antes del despliegue.
+
+---
+
+## Anexos
+
+### Anexo A: Diccionario de Datos y Roles
+
+Ver `docs/inventario_datos.md` para inventario completo de 45 campos con categorías, cifrado, roles y finalidad.
+
+### Anexo B: DPIA Completa
+
+Ver `docs/DPIA.md` para Evaluación de Impacto en la Protección de Datos completa con descripción sistemática, ciclo de vida, riesgos y plan de revisión.
+
+### Anexo C: Reportes de Seguridad
+
+Ver `docs/hallazgos.md` (hallazgos iniciales), `docs/comparativa_antes_despues.md` (comparativa antes/después), `reports/before/` y `reports/after/` (reportes JSON de herramientas).
+
+### Anexo D: Documentación de Docker
+
+Ver `docs/DOCKER.md` (arquitectura, puertos, volúmenes, depuración) y `docs/HARDENING_DOCKER.md` (tabla de controles de hardening con referencias CIS/OWASP).
+
+### Anexo E: Referencias Normativas
+
+- **FIPS 197:** Advanced Encryption Standard (AES)
+- **NIST SP 800-38D:** Recommendation for Block Cipher Modes of Operation: GCM
+- **NIST SP 800-57 Part 1:** Recommendation for Key Management
+- **NIST SP 800-63B:** Digital Identity Guidelines
+- **NIST SP 800-52 Rev. 2:** Transition to TLS 1.3
+- **NIST SP 800-92:** Guide to Computer Security Log Management
+- **NIST SP 800-61:** Computer Security Incident Handling Guide
+- **RFC 8446:** The Transport Layer Security (TLS) Protocol Version 1.3
+- **RFC 7519:** JSON Web Token (JWT)
+- **RFC 8725:** JSON Web Token Best Current Practices
+- **OWASP Password Storage Cheat Sheet:** Password Storage Guidelines
+- **OWASP Logging Cheat Sheet:** Logging Best Practices
+- **OWASP ASVS:** Application Security Verification Standard
+- **CIS Docker Benchmark:** Benchmarks for Container Security
+- **OWASP Docker Security Cheat Sheet:** Docker Security Guidelines
+- **GDPR Art. 35:** Data Protection Impact Assessment
+- **ISO/IEC 29134:** Information technology — Security techniques — Privacy impact assessment
+- **HIPAA Security Rule 45 CFR 164.312:** Technical Safeguards
+- **Ley 29733:** Ley de Protección de Datos Personales (Perú)
+- **Reglamento D.S. 016-2024-JUS:** Reglamento de la Ley 29733 [VERIFICAR]
+- **ANPD:** Autoridad Nacional de Protección de Datos Personales

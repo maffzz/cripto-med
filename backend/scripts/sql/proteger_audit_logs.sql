@@ -41,6 +41,7 @@ BEGIN
         GRANT SELECT, INSERT, UPDATE, DELETE ON usuarios TO app_user;
         GRANT SELECT, INSERT, UPDATE, DELETE ON pacientes TO app_user;
         GRANT SELECT, INSERT, UPDATE, DELETE ON diagnosticos_cie10 TO app_user;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON accesos_emergencia TO app_user;
         
         -- Tabla de auditoría: MÍNIMO PRIVILEGIO (Solo INSERT y SELECT, jamás UPDATE ni DELETE)
         GRANT SELECT, INSERT ON audit_logs TO app_user;

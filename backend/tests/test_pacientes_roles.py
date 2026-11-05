@@ -188,8 +188,9 @@ class TestPacientesPorRol:
             assert "medicacion_descifrado" in paciente
             assert "resultado_test_descifrado" in paciente
         else:
-            # Administrativo NO debe ver campos sensibles
+            # Administrativo NO debe ver campos sensibles (Paso 0.3)
             assert "diagnostico_descifrado" not in paciente
+            assert "codigo_cie10" not in paciente
             assert "medicacion_descifrado" not in paciente
             assert "resultado_test_descifrado" not in paciente
     
@@ -242,8 +243,9 @@ class TestPacientesPorRol:
                 assert "medicacion_descifrado" in paciente
                 assert "resultado_test_descifrado" in paciente
             else:
-                # Administrativo NO debe ver campos sensibles
+                # Administrativo NO debe ver campos sensibles (Paso 0.3)
                 assert "diagnostico_descifrado" not in paciente
+                assert "codigo_cie10" not in paciente
                 assert "medicacion_descifrado" not in paciente
                 assert "resultado_test_descifrado" not in paciente
     

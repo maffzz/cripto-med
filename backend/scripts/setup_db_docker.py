@@ -18,15 +18,24 @@ def crear_tablas():
         from app.database import engine, Base
         import app.models  # asegura que todos los modelos se registren en Base.metadata
         
+        owner_url = os.getenv("OWNER_DATABASE_URL")
+        if owner_url:
+            from sqlalchemy import create_engine
+            if owner_url.startswith("postgresql://"):
+                owner_url = owner_url.replace("postgresql://", "postgresql+psycopg://")
+            target_engine = create_engine(owner_url, pool_pre_ping=True)
+        else:
+            target_engine = engine
+
         print("Creando tablas según modelos SQLAlchemy...")
-        Base.metadata.create_all(bind=engine)
+        Base.metadata.create_all(bind=target_engine)
         print("Tablas creadas exitosamente en PostgreSQL:")
         for table in Base.metadata.sorted_tables:
             print(f"  - {table.name}")
         
         # Migraciones / extensiones idempotentes
         from sqlalchemy import text
-        with engine.connect() as conn:
+        with target_engine.connect() as conn:
             conn.execute(text("""
                 ALTER TYPE accionenum ADD VALUE IF NOT EXISTS 'login_fallido';
                 ALTER TYPE accionenum ADD VALUE IF NOT EXISTS 'bloqueo';
@@ -40,7 +49,7 @@ def crear_tablas():
             conn.commit()
 
         # Aplicar triggers y permisos sobre audit_logs
-        aplicar_triggers_y_permisos(engine)
+        aplicar_triggers_y_permisos(target_engine)
         return True
     except Exception as e:
         print(f"❌ Error al crear tablas: {e}")

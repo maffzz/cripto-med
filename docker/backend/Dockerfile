@@ -1,11 +1,5 @@
-# Dockerfile para CriptoMed Backend (single-stage para simplicidad)
+# Dockerfile para CriptoMed Backend
 FROM python:3.12.7-slim
-
-# Instalar dependencias de sistema para psycopg
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
