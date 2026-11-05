@@ -3,8 +3,10 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_CONFIG } from '../config';
-import { Users, Activity, Clock, AlertCircle, Search, Filter, MoreVertical, Shield } from 'lucide-react';
+import { Users, Activity, Clock, AlertCircle, Search, Filter, MoreVertical, Shield, PieChart, BarChart3, TrendingUp } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
+import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer as RechartsResponsiveContainer } from 'recharts';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -42,14 +44,39 @@ const Dashboard = () => {
     const matchesSearch =
       paciente.nombre_descifrado?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       paciente.hospital?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesFilter =
       filterBy === 'all' ||
       (filterBy === 'active' && !paciente.fecha_alta) ||
       (filterBy === 'discharged' && paciente.fecha_alta);
-    
+
     return matchesSearch && matchesFilter;
   });
+
+  // Datos para gráficos
+  const pacientesPorHospital = pacientes.reduce((acc, p) => {
+    const hospital = p.hospital || 'No especificado';
+    acc[hospital] = (acc[hospital] || 0) + 1;
+    return acc;
+  }, {});
+
+  const datosHospital = Object.entries(pacientesPorHospital).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
+  const pacientesPorTipoAdmision = pacientes.reduce((acc, p) => {
+    const tipo = p.tipo_admision || 'No especificado';
+    acc[tipo] = (acc[tipo] || 0) + 1;
+    return acc;
+  }, {});
+
+  const datosTipoAdmision = Object.entries(pacientesPorTipoAdmision).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
   if (loading) {
     return (
@@ -143,6 +170,55 @@ const Dashboard = () => {
               <Shield className="w-6 h-6 text-purple-600" />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Pie Chart: Pacientes por Hospital */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <PieChart className="w-5 h-5 text-primary-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Pacientes por Hospital</h3>
+          </div>
+          <RechartsResponsiveContainer width="100%" height={300}>
+            <RechartsPieChart>
+              <Pie
+                data={datosHospital}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {datosHospital.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </RechartsPieChart>
+          </RechartsResponsiveContainer>
+        </div>
+
+        {/* Bar Chart: Pacientes por Tipo de Admisión */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="w-5 h-5 text-primary-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Pacientes por Tipo de Admisión</h3>
+          </div>
+          <RechartsResponsiveContainer width="100%" height={300}>
+            <BarChart data={datosTipoAdmision}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <RechartsTooltip />
+              <RechartsLegend />
+              <Bar dataKey="value" fill="#3b82f6" />
+            </BarChart>
+          </RechartsResponsiveContainer>
         </div>
       </div>
 
