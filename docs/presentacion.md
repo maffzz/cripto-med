@@ -31,7 +31,7 @@
 
 **Viñetas:**
 - Ley 29733: Datos de salud son sensibles (Art. 3), medidas técnicas obligatorias (Art. 5), notificación de incidentes a ANPD (Art. 10)
-- Reglamento D.S. 016-2024-JUS: Obligaciones de responsables y encargados [VERIFICAR]
+- Reglamento D.S. 016-2024-JUS: Obligaciones de responsables y encargados (Decreto Supremo N° 016-2024-JUS, 30 noviembre 2024)
 - ANPD: Autoridad Nacional de Protección de Datos Personales
 - Usuarios: 5 roles (admin, doctor, administrativo, auditor, paciente)
 - Caso de uso: Clínica pequeña con 3 doctores, 2 administrativos, ~55,000 pacientes

@@ -198,8 +198,9 @@ En el desarrollo de CriptoMed para la Entrega 2, se utilizó IA generativa (Clau
 - Escaneos de seguridad antes/después mostraron reducción del 61.18% en hallazgos
 - Funcionalidad verificada manualmente (login, lectura por rol, transferencia, exportación)
 
-**Marcadores [VERIFICAR]:**
-- Referencias legales (Reglamento D.S. 016-2024-JUS, norma técnica MINSA) marcadas para verificación manual en fuentes oficiales
+**Referencias legales verificadas:**
+- Reglamento D.S. 016-2024-JUS: Decreto Supremo N° 016-2024-JUS aprobado el 30 de noviembre de 2024
+- Norma técnica MINSA R.M. Nº 214-2018/MINSA: 20 años de conservación de historias clínicas (5 años en archivo activo + 15 años en archivo pasivo)
 - Probabilidades e impactos en matriz de riesgos marcados para ajuste según criterio humano
 
 **Aceptación de riesgo:** El uso de IA no se oculta. Este documento declara explícitamente qué se generó con IA y cómo se revisó.
@@ -270,8 +271,8 @@ CriptoMed incorpora consideraciones éticas y de privacidad en su diseño:
 ## Referencias
 
 - **Ley 29733 (Perú):** Ley de Protección de Datos Personales
-- **Reglamento D.S. 016-2024-JUS:** Reglamento de la Ley 29733 [VERIFICAR]
-- **Norma técnica MINSA:** [VERIFICAR] plazo de conservación de historias clínicas
+- **Reglamento D.S. 016-2024-JUS:** Reglamento de la Ley 29733 (Decreto Supremo N° 016-2024-JUS, 30 noviembre 2024)
+- **Norma técnica MINSA:** R.M. Nº 214-2018/MINSA exige conservación de historias clínicas por 20 años (5 años en archivo activo + 15 años en archivo pasivo)
 - **GDPR Art. 15:** Right of access by the data subject
 - **GDPR Art. 17:** Right to erasure ('right to be forgotten')
 - **GDPR Art. 20:** Right to data portability

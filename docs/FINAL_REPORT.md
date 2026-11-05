@@ -456,7 +456,7 @@ graph TB
 
 **Lección 2:** Migración de despliegue (Render → Docker) fue compleja pero valiosa. Docker permite reproducibilidad completa y control de seguridad que PaaS no ofrece.
 
-**Lección 3:** Referencias legales deben verificarse en fuentes oficiales. Marcadores [VERIFICAR] en DPIA para Reglamento D.S. 016-2024-JUS y norma técnica MINSA requieren confirmación manual.
+**Lección 3:** Referencias legales deben verificarse en fuentes oficiales. Se verificaron fuentes oficiales peruanas (gob.pe, MINSA) para Reglamento D.S. 016-2024-JUS (Decreto Supremo N° 016-2024-JUS, 30 noviembre 2024) y norma técnica MINSA R.M. Nº 214-2018/MINSA (20 años de conservación de historias clínicas).
 
 **Lección 4:** Seguridad es proceso continuo, no proyecto de una sola vez. Escaneos regulares, actualización de dependencias y revisión de arquitectura son necesarios.
 
@@ -488,7 +488,7 @@ graph TB
 
 ### 9.1 Recomendaciones de Corto Plazo
 
-1. **Implementar política de retención y anonimización:** Conforme a [VERIFICAR] plazo de norma técnica MINSA, anonimizar datos personales después del plazo legal conservando datos clínicos anonimizados para investigación.
+1. **Implementar política de retención y anonimización:** Conforme a norma técnica MINSA R.M. Nº 214-2018/MINSA (20 años: 5 años en archivo activo + 15 años en archivo pasivo), anonimizar datos personales después del plazo legal conservando datos clínicos anonimizados para investigación.
 
 2. **Canal formal de ejercicio de derechos:** Implementar módulo de gestión de solicitudes de derechos del titular con tracking de tiempos de respuesta conforme a Reglamento D.S. 016-2024-JUS.
 
@@ -557,5 +557,5 @@ Ver `docs/DOCKER.md` (arquitectura, puertos, volúmenes, depuración) y `docs/HA
 - **ISO/IEC 29134:** Information technology — Security techniques — Privacy impact assessment
 - **HIPAA Security Rule 45 CFR 164.312:** Technical Safeguards
 - **Ley 29733:** Ley de Protección de Datos Personales (Perú)
-- **Reglamento D.S. 016-2024-JUS:** Reglamento de la Ley 29733 [VERIFICAR]
+- **Reglamento D.S. 016-2024-JUS:** Reglamento de la Ley 29733 (Decreto Supremo N° 016-2024-JUS, 30 noviembre 2024)
 - **ANPD:** Autoridad Nacional de Protección de Datos Personales

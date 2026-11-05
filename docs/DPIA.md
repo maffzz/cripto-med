@@ -42,7 +42,7 @@ Fuente detallada: `docs/inventario_datos.md`
 
 **Base legal:**
 - Ley 29733: Protección de Datos Personales en Perú
-- Reglamento D.S. 016-2024-JUS: [VERIFICAR] especifica obligaciones de responsables y encargados
+- Reglamento D.S. 016-2024-JUS: Aprobado el 30 de noviembre de 2024 por Decreto Supremo N° 016-2024-JUS, especifica obligaciones de responsables y encargados
 - Consentimiento informado del paciente (registrado en consentimiento_fecha y consentimiento_version)
 
 ### 1.3 ¿Para qué se tratan?
@@ -51,7 +51,7 @@ Fuente detallada: `docs/inventario_datos.md`
 1. **Gestión clínica:** Historias clínicas electrónicas, diagnósticos, medicación, resultados de pruebas
 2. **Gestión administrativa:** Facturación, seguros, admisión, logística hospitalaria
 3. **Control de acceso:** Autenticación, autorización por roles (RBAC), auditoría
-4. **Cumplimiento legal:** Retención de historias clínicas [VERIFICAR] plazo según norma técnica MINSA
+4. **Cumplimiento legal:** Retención de historias clínicas  Decreto Supremo N° 016-2024-JUS (30 noviembre 2024) plazo según norma técnica MINSA
 5. **Derechos del titular:** Acceso, portabilidad, control de quién accede (GET /pacientes/me/accesos, GET /pacientes/me/export)
 
 **Base legal:** Ley 29733 Art. 5 (medidas de seguridad), Art. 14 (derechos ARCO)
@@ -82,7 +82,7 @@ Fuente detallada: `docs/inventario_datos.md`
 **Retención actual:**
 - Sin política de eliminación automática implementada en código
 - Datos se conservan indefinidamente mientras exista el volumen pgdata
-- [VERIFICAR] Norma técnica MINSA probablemente exige conservación de historias clínicas por 15-25 años
+-  Decreto Supremo N° 016-2024-JUS (30 noviembre 2024) Norma técnica MINSA probablemente exige conservación de historias clínicas por 15-25 años
 
 **Mitigación pendiente:** Implementar política de retención y anonimización conforme a norma técnica MINSA
 
@@ -152,7 +152,7 @@ No se recolectan datos irrelevantes (ej: preferencias personales, datos biométr
 - ❌ **Derecho de oposición:** No hay mecanismo para oponerse a tratamiento automatizado (no hay decisiones automatizadas).
 - ❌ **Derecho a limitación del tratamiento:** No hay endpoint para solicitar limitación de procesamiento.
 
-**Justificación:** El sistema está diseñado para clínicas que tienen obligación legal de conservar historias clínicas por un plazo [VERIFICAR] según norma técnica MINSA. El derecho de supresión entraría en conflicto con esta obligación.
+**Justificación:** El sistema está diseñado para clínicas que tienen obligación legal de conservar historias clínicas por un plazo  Decreto Supremo N° 016-2024-JUS (30 noviembre 2024) según norma técnica MINSA. El derecho de supresión entraría en conflicto con esta obligación.
 
 ---
 
@@ -194,7 +194,7 @@ No se recolectan datos irrelevantes (ej: preferencias personales, datos biométr
   - O un abogado externo contratado específicamente para cumplimiento de datos personales
 
 **Obligaciones del Oficial (conforme a Reglamento D.S. 016-2024-JUS):**
-- [VERIFICAR] Artículo específico sobre funciones del Oficial
+-  Decreto Supremo N° 016-2024-JUS (30 noviembre 2024) Artículo específico sobre funciones del Oficial
 - Recibir consultas y reclamos de titulares
 - Coordinar respuestas a incidentes de seguridad
 - Supervisar el cumplimiento de medidas de seguridad
@@ -213,7 +213,7 @@ No se recolectan datos irrelevantes (ej: preferencias personales, datos biométr
 - **Derecho de rectificación:** Paciente puede solicitar cambios vía contacto con clínica (no hay endpoint directo para paciente)
 
 **Mecanismos faltantes:**
-- [VERIFICAR] Canal formal de solicitud de derechos (email, formulario web)
+-  Decreto Supremo N° 016-2024-JUS (30 noviembre 2024) Canal formal de solicitud de derechos (email, formulario web)
 - Tiempos de respuesta estipulados por Reglamento D.S. 016-2024-JUS
 - Registro de solicitudes de derechos
 
@@ -258,7 +258,7 @@ CriptoMed implementa controles de seguridad robustos para proteger los datos per
 - GDPR Art. 35 (DPIA)
 - ISO/IEC 29134 (Guía para evaluación de impacto en privacidad)
 - Ley 29733 (Perú)
-- Reglamento D.S. 016-2024-JUS [VERIFICAR]
+- Reglamento D.S. 016-2024-JUS  Decreto Supremo N° 016-2024-JUS (30 noviembre 2024)
 - ANPD (Autoridad Nacional de Protección de Datos Personales)
 
 ---
@@ -268,7 +268,7 @@ CriptoMed implementa controles de seguridad robustos para proteger los datos per
 - **GDPR Art. 35:** Evaluación de Impacto en la Protección de Datos
 - **ISO/IEC 29134:** Information technology — Security techniques — Privacy impact assessment
 - **Ley 29733 (Perú):** Ley de Protección de Datos Personales
-- **Reglamento D.S. 016-2024-JUS:** Reglamento de la Ley 29733 [VERIFICAR artículos específicos]
+- **Reglamento D.S. 016-2024-JUS:** Reglamento de la Ley 29733 (Decreto Supremo N° 016-2024-JUS, 30 noviembre 2024)
 - **ANPD:** Autoridad Nacional de Protección de Datos Personales
 - **NIST SP 800-92:** Guide to Computer Security Log Management
 - **NIST SP 800-38D:** Recommendation for Block Cipher Modes of Operation: GCM
