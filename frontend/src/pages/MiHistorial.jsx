@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { API_CONFIG } from '../config';
+import toast from 'react-hot-toast';
+import Skeleton from '../components/Skeleton';
 import {
   User,
   Activity,
@@ -31,7 +33,6 @@ const MiHistorial = () => {
   const [doctores, setDoctores] = useState([]);
   const [nuevoDoctorId, setNuevoDoctorId] = useState('');
   const [transfiriendo, setTransfiriendo] = useState(false);
-  const [mensajeExito, setMensajeExito] = useState('');
   
   // Accesos / Trazabilidad
   const [accesos, setAccesos] = useState([]);
@@ -92,7 +93,6 @@ const MiHistorial = () => {
   const confirmarTransferencia = async () => {
     setTransfiriendo(true);
     setError(null);
-    setMensajeExito('');
     setMostrarModalConfirmacion(false);
 
     try {
@@ -101,14 +101,14 @@ const MiHistorial = () => {
       });
 
       const doctorDestino = doctores.find(d => d.id === nuevoDoctorId);
-      setMensajeExito(`Historial transferido exitosamente a ${doctorDestino ? doctorDestino.nombre : 'nuevo doctor'}.`);
+      toast.success(`Historial transferido exitosamente a ${doctorDestino ? doctorDestino.nombre : 'nuevo doctor'}.`);
       setNuevoDoctorId('');
       // Recargar historial y accesos para reflejar el evento en la auditoría
       await fetchMiHistorial();
       await fetchAccesos();
     } catch (err) {
       console.error('Error al transferir doctor:', err);
-      setError('Error al procesar la transferencia del historial.');
+      toast.error('Error al procesar la transferencia del historial.');
     } finally {
       setTransfiriendo(false);
     }
@@ -127,12 +127,12 @@ const MiHistorial = () => {
       downloadAnchor.click();
       downloadAnchor.remove();
 
-      setMensajeExito('Copia de datos personales y clínicos exportada exitosamente en formato JSON (Derecho de Portabilidad - Ley 29733 / GDPR).');
+      toast.success('Copia de datos personales y clínicos exportada exitosamente en formato JSON (Derecho de Portabilidad - Ley 29733 / GDPR).');
       // Recargar accesos para mostrar el registro de exportación en la tabla de auditoría
       await fetchAccesos();
     } catch (err) {
       console.error('Error al exportar datos:', err);
-      setError('Error al generar la exportación de sus datos personales.');
+      toast.error('Error al generar la exportación de sus datos personales.');
     } finally {
       setExportando(false);
     }
@@ -140,8 +140,16 @@ const MiHistorial = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="animate-spin text-4xl text-blue-600" />
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+        <Skeleton className="h-12 w-64" />
+        <Skeleton className="h-16 w-full" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64" />
+        </div>
+        <Skeleton className="h-64" />
+        <Skeleton className="h-64" />
+        <Skeleton className="h-64" />
       </div>
     );
   }
@@ -193,19 +201,7 @@ const MiHistorial = () => {
         </div>
       </div>
 
-      {mensajeExito && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-          <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-          <p className="text-green-800">{mensajeExito}</p>
-        </div>
-      )}
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <p className="text-red-800">{error}</p>
-        </div>
-      )}
 
       {paciente && (
         <div className="space-y-6">

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_CONFIG } from '../config';
 import { Users, Activity, Clock, AlertCircle, Search, Filter, MoreVertical, Shield } from 'lucide-react';
+import Skeleton from '../components/Skeleton';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -52,10 +53,28 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-gray-600">
-          <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
-          <span>Cargando pacientes...</span>
+      <div className="space-y-6">
+        {/* Skeleton Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <Skeleton className="h-6 w-32 mb-4" />
+              <Skeleton className="h-10 w-20" />
+            </div>
+          ))}
+        </div>
+        {/* Skeleton Search */}
+        <Skeleton className="h-12 w-full" />
+        {/* Skeleton Patients Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <Skeleton className="h-6 w-48 mb-4" />
+              <Skeleton className="h-4 w-32 mb-2" />
+              <Skeleton className="h-4 w-24 mb-4" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ))}
         </div>
       </div>
     );
