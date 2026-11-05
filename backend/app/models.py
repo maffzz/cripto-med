@@ -74,6 +74,8 @@ class Paciente(Base):
     resultado_test = Column(String) # cifrado en capa de aplicación
     consentimiento_fecha = Column(DateTime, nullable=True)
     consentimiento_version = Column(String, nullable=True, default="v1.0")
+    anonimizado = Column(Boolean, default=False) # marca de anonimización para política de retención
+    fecha_anonimizacion = Column(DateTime, nullable=True) # fecha de anonimización
 
     doctor = relationship("Usuario", back_populates="pacientes_asignados", foreign_keys=[doctor_id])
     usuario = relationship("Usuario", foreign_keys=[usuario_id])
