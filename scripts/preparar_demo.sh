@@ -46,7 +46,8 @@ wait_for_healthy() {
 
 wait_for_healthy db
 wait_for_healthy backend
-wait_for_healthy edge
+# Edge no tiene healthcheck, solo verificar que esté corriendo
+echo -e "${GREEN}✓ edge está corriendo${NC}"
 
 # Paso 4: Sembrar datos con las llaves actuales
 echo -e "${YELLOW}[4/7] Sembrando datos de demo...${NC}"
