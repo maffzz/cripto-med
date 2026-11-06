@@ -209,15 +209,18 @@ def crear_usuarios_iniciales(db: Session) -> int:
     contador = 0
     for udata in usuarios:
         existe = db.query(Usuario).filter(Usuario.email == udata["email"]).first()
-        if existe:
-            # Actualizar nombre si cambió (ej. de Dr. Juan Perez a Dra. Ana Torres)
-            if existe.nombre != udata["nombre"]:
-                existe.nombre = udata["nombre"]
-                db.commit()
-            continue
-        
-        pwd = udata["password"]
+        pwd = udata["password"] # clave desde DEMO_PASSWORD_* del .env
         validate_password_policy(pwd, email=udata["email"], nombre=udata["nombre"])
+        if existe:
+            existe.nombre = udata["nombre"] # alinea nombre de demo
+            existe.password_hash = get_password_hash(pwd) # rehash para coincidir con el .env actual
+            existe.intentos_fallidos = 0 # desbloquea tras pruebas fallidas
+            existe.bloqueado_hasta = None # limpia ventana de bloqueo
+            existe.activo = True # asegura que el usuario de demo pueda entrar
+            existe.rol = udata["rol"] # mantiene el rol esperado
+            db.commit()
+            continue
+
         
         usuario = Usuario(
             nombre=udata["nombre"],

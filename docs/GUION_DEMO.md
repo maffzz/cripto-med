@@ -15,13 +15,13 @@
 4. Navegador: https://localhost:8443 (aceptar certificado autofirmado)
 5. Navegador - Pestaña Network (DevTools) abierta
 
-**Usuarios de demo (contraseña: ver .env):**
-- admin@criptomed.local (admin)
-- ana.torres@criptomed.local (doctor - Dra. Ana Torres) - tiene al Paciente Demo
-- luis.ramirez@criptomed.local (doctor - Dr. Luis Ramírez) - NO tiene al Paciente Demo
-- admin1@criptomed.local (administrativo)
-- auditor1@criptomed.local (auditor)
-- paciente1@criptomed.local (paciente - Paciente Demo)
+**Usuarios de demo (contraseñas: `DEMO_PASSWORD_*` en `.env`):**
+- admin@criptomed.com (admin)
+- doctor@criptomed.com (doctor - Dra. Ana Torres)
+- dr.ramirez@criptomed.com (doctor - Dr. Luis Ramírez)
+- admin@clinica.com (administrativo)
+- auditor@criptomed.com (auditor)
+- paciente@criptomed.com (paciente - Paciente Demo / Bobby Jackson)
 
 ---
 
@@ -50,13 +50,15 @@
 ### Paso 2: Bloqueo por intentos fallidos
 
 **URL:** https://localhost:8443  
-**Usuario:** admin@criptomed.local  
+**Usuario:** admin@criptomed.com (contraseña: `DEMO_PASSWORD_ADMIN` en `.env`)  
 **Acción:** Intentar login 5 veces con contraseña incorrecta, luego login correcto
+
+![Login](images/login.png)
 
 **Qué ver en pantalla:**
 - Después del 5to intento fallido, mensaje de bloqueo temporal
 - Intento #6 falla incluso con contraseña correcta
-- Esperar 15 minutos o resetear con `docker compose exec backend python -c "from app.database import SessionLocal; from app.models import Usuario; db = SessionLocal(); u = db.query(Usuario).filter(Usuario.email == 'admin@criptomed.local').first(); u.bloqueado_hasta = None; u.intentos_fallidos = 0; db.commit(); print('Desbloqueado')"`
+- Esperar 15 minutos o resetear con `docker compose exec backend python -c "from app.database import SessionLocal; from app.models import Usuario; db = SessionLocal(); u = db.query(Usuario).filter(Usuario.email == 'admin@criptomed.com').first(); u.bloqueado_hasta = None; u.intentos_fallidos = 0; db.commit(); print('Desbloqueado')"`
 - Login correcto ahora funciona
 
 **Frase para el público:**
@@ -69,8 +71,10 @@
 ### Paso 3: RBAC - Doctor A ve solo sus pacientes
 
 **URL:** https://localhost:8443  
-**Usuario:** ana.torres@criptomed.local (Dra. Ana Torres)  
+**Usuario:** doctor@criptomed.com (Dra. Ana Torres; contraseña `DEMO_PASSWORD_DOCTOR`)  
 **Acción:** Login y ver lista de pacientes
+
+![Dashboard doctor](images/doctor_dashboard.png)
 
 **Qué ver en pantalla:**
 - Dashboard muestra solo pacientes asignados a Dra. Ana Torres
@@ -81,12 +85,18 @@
 
 **Medida de seguridad evidenciada:** RBAC, mínimo privilegio
 
+**Rol auditor (no lista pacientes):**
+
+![Auditor denegado en dashboard de pacientes](images/auditor_dashboard_denegado.png)
+
+![Auditor: solo lectura de logs](images/auditor_logs.png)
+
 ---
 
 ### Paso 4: Doctor B NO ve al paciente demo
 
 **URL:** https://localhost:8443  
-**Usuario:** luis.ramirez@criptomed.local (Dr. Luis Ramírez)  
+**Usuario:** dr.ramirez@criptomed.com (Dr. Luis Ramírez; contraseña `DEMO_PASSWORD_DOCTOR`)  
 **Acción:** Login y ver lista de pacientes
 
 **Qué ver en pantalla:**
@@ -118,7 +128,7 @@
 ### Paso 6: Paciente ve su historial y quién accedió
 
 **URL:** https://localhost:8443  
-**Usuario:** paciente1@criptomed.local (Paciente Demo)  
+**Usuario:** paciente@criptomed.com (Paciente Demo; contraseña `DEMO_PASSWORD_PACIENTE`)  
 **Acción:** Login, ver historial, ver accesos
 
 **Qué ver en pantalla:**
@@ -135,17 +145,29 @@
 ### Paso 7: Transferencia self-service
 
 **URL:** https://localhost:8443  
-**Usuario:** paciente1@criptomed.local (Paciente Demo)  
-**Acción:** Transferir historial a Dr. Luis Ramírez
+**Usuario:** paciente@criptomed.com (Paciente Demo)  
+**Acción:** Transferir historial a otro doctor
+
+![Transferencia self-service](images/bobby_tranfiere_ana.png)
 
 **Qué ver en pantalla:**
 - Paciente selecciona "Transferir doctor"
-- Elige Dr. Luis Ramírez de la lista
+- Elige el médico destino
 - Confirma la transferencia
 - Mensaje de éxito
 
-**Luego:** Login como luis.ramirez@criptomed.local → Ahora ve Paciente Demo  
-**Luego:** Login como ana.torres@criptomed.local → Ya NO ve Paciente Demo
+![Luis ve a Bobby](images/luis_si_bobby.png)
+
+![Ana no ve a Bobby Jackson](images/ana_no_bobby.png)
+
+![Ana vuelve a ver a Bobby](images/ana_ahora_si_bobby.png)
+
+![Luis ya no ve a Bobby](images/luis_ya_no_bobby.png)
+
+![Log de la transferencia](images/logs_transferencia.png)
+
+**Luego:** Login como dr.ramirez@criptomed.com → ve o deja de ver al paciente según la transferencia  
+**Luego:** Login como doctor@criptomed.com → el conjunto de pacientes asignados cambia al inverso
 
 **Frase para el público:**
 > "El paciente puede transferir su historial a otro doctor sin intervención administrativa. Dr. Luis Ramírez ahora ve al paciente y Dra. Ana Torres ya no. La transferencia queda registrada en logs."

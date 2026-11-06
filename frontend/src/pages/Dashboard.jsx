@@ -4,10 +4,27 @@ import { useTheme } from '../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_CONFIG } from '../config';
-import { Users, Activity, Clock, AlertCircle, Search, Filter, MoreVertical, Shield, PieChart, BarChart3, TrendingUp } from 'lucide-react';
+import { Users, Activity, Clock, AlertCircle, Search, Filter, MoreVertical, Shield, PieChart, BarChart3 } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer as RechartsResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Cell as RechartsCell, ResponsiveContainer as RechartsResponsiveContainer } from 'recharts';
+
+// Traducciones de tipo de admisión (dataset en inglés → español)
+const TIPO_ADMISION_ES = {
+  'Electiva':         'Electiva',
+  'Urgencia':         'Urgencia',
+  'Emergencia':       'Emergencia',
+  'Consulta Externa': 'Consulta Externa',
+};
+
+// Traducciones de rol
+const ROL_ES = {
+  admin:          'Admin',
+  doctor:         'Doctor',
+  administrativo: 'Administrativo',
+  auditor:        'Auditor',
+  paciente:       'Paciente',
+};
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -55,30 +72,34 @@ const Dashboard = () => {
     return matchesSearch && matchesFilter;
   });
 
-  // Datos para gráficos
-  const pacientesPorHospital = pacientes.reduce((acc, p) => {
-    const hospital = p.hospital || 'No especificado';
-    acc[hospital] = (acc[hospital] || 0) + 1;
+  // --- Datos para gráficos ---
+
+  // Hospitales: Top 8 + "Otros" agrupados (evita el caos visual con 500 hospitales únicos)
+  const hospitalCounts = pacientes.reduce((acc, p) => {
+    const h = p.hospital || 'No especificado';
+    acc[h] = (acc[h] || 0) + 1;
     return acc;
   }, {});
+  const hospitalSorted = Object.entries(hospitalCounts).sort((a, b) => b[1] - a[1]);
+  const TOP_N = 8;
+  const topHospitales = hospitalSorted.slice(0, TOP_N);
+  const otrosTotal = hospitalSorted.slice(TOP_N).reduce((s, [, v]) => s + v, 0);
+  const datosHospital = [
+    ...topHospitales.map(([name, value]) => ({ name, value })),
+    ...(otrosTotal > 0 ? [{ name: 'Otros', value: otrosTotal }] : []),
+  ];
 
-  const datosHospital = Object.entries(pacientesPorHospital).map(([name, value]) => ({
-    name,
-    value,
-  }));
-
-  const pacientesPorTipoAdmision = pacientes.reduce((acc, p) => {
-    const tipo = p.tipo_admision || 'No especificado';
+  // Tipo de admisión: traducir al español
+  const admisionCounts = pacientes.reduce((acc, p) => {
+    const tipo = TIPO_ADMISION_ES[p.tipo_admision] || p.tipo_admision || 'No especificado';
     acc[tipo] = (acc[tipo] || 0) + 1;
     return acc;
   }, {});
+  const datosTipoAdmision = Object.entries(admisionCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value]) => ({ name, value }));
 
-  const datosTipoAdmision = Object.entries(pacientesPorTipoAdmision).map(([name, value]) => ({
-    name,
-    value,
-  }));
-
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
   if (loading) {
     return (
@@ -166,7 +187,9 @@ const Dashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Tu Rol</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2 capitalize">{user?.rol}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2 capitalize">
+                {ROL_ES[user?.rol] || user?.rol}
+              </p>
             </div>
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
               <Shield className="w-6 h-6 text-purple-600" />
@@ -177,32 +200,41 @@ const Dashboard = () => {
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pie Chart: Pacientes por Hospital */}
+        {/* Pie Chart: Pacientes por Hospital (Top 8 + Otros) */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-4">
             <PieChart className="w-5 h-5 text-primary-600" />
             <h3 className="text-lg font-semibold text-gray-900">Pacientes por Hospital</h3>
+            <span className="ml-auto text-xs text-gray-400">Top {TOP_N} + Otros</span>
           </div>
-          <RechartsResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={300}>
             <RechartsPieChart>
               <Pie
                 data={datosHospital}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
+                outerRadius={90}
                 dataKey="value"
               >
                 {datosHospital.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
-              <Legend />
+              <Tooltip
+                formatter={(value, name) => [value + ' pacientes', name]}
+              />
+              <Legend
+                layout="vertical"
+                align="right"
+                verticalAlign="middle"
+                formatter={(value) =>
+                  value.length > 22 ? value.slice(0, 20) + '…' : value
+                }
+                wrapperStyle={{ fontSize: '12px', lineHeight: '20px' }}
+              />
             </RechartsPieChart>
-          </RechartsResponsiveContainer>
+          </ResponsiveContainer>
         </div>
 
         {/* Bar Chart: Pacientes por Tipo de Admisión */}
@@ -212,13 +244,19 @@ const Dashboard = () => {
             <h3 className="text-lg font-semibold text-gray-900">Pacientes por Tipo de Admisión</h3>
           </div>
           <RechartsResponsiveContainer width="100%" height={300}>
-            <BarChart data={datosTipoAdmision}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <RechartsTooltip />
-              <RechartsLegend />
-              <Bar dataKey="value" fill="#3b82f6" />
+            <BarChart data={datosTipoAdmision} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 13 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+              <RechartsTooltip
+                formatter={(value) => [value + ' pacientes', 'Total']}
+                cursor={{ fill: '#f0f9ff' }}
+              />
+              <Bar dataKey="value" name="Pacientes" radius={[4, 4, 0, 0]}>
+                {datosTipoAdmision.map((entry, index) => (
+                  <RechartsCell key={`bar-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Bar>
             </BarChart>
           </RechartsResponsiveContainer>
         </div>

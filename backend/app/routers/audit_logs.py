@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.database import get_db
-from app.models import AuditLog, RolEnum, AccionEnum
+from app.models import AuditLog, Paciente, Usuario, RolEnum, AccionEnum
 from app.rbac import require_role
 
 router = APIRouter(prefix="/audit-logs", tags=["Auditoría"])
@@ -59,6 +59,30 @@ class ReporteAlertas(BaseModel):
     alertas: List[AlertaItem]
 
 
+class MetricasOficial(BaseModel):
+    """Métricas reales del sistema para el Dashboard Oficial (admin only)."""
+    # Pacientes
+    total_pacientes: int
+    pacientes_activos: int
+    pacientes_dados_alta: int
+    # Usuarios
+    total_usuarios: int
+    usuarios_activos: int
+    usuarios_por_rol: Dict[str, int]
+    # Actividad (últimas 24 h y 7 días)
+    accesos_24h: int
+    accesos_7d: int
+    logins_fallidos_24h: int
+    bloqueos_24h: int
+    exportaciones_7d: int
+    accesos_emergencia_7d: int
+    # Logs
+    total_logs: int
+    ultimo_log_ts: Optional[datetime]
+    # Generado
+    generado_en: datetime
+
+
 @router.get("", response_model=PaginatedAuditLogs, dependencies=[autorizado])
 def listar_logs(
     usuario_id: Optional[UUID] = Query(None, description="Filtrar por ID de usuario"),
@@ -96,6 +120,82 @@ def listar_logs(
         "page_size": page_size,
         "items": items,
     }
+
+
+@router.get("/metricas", response_model=MetricasOficial, dependencies=[autorizado])
+def obtener_metricas(db: Session = Depends(get_db)):
+    """
+    Métricas reales del sistema para el Dashboard Oficial.
+    Solo accesible para admin y auditor.
+    Los datos se calculan en tiempo real desde audit_logs, pacientes y usuarios.
+    """
+    now = datetime.now(timezone.utc)
+    hace_24h = (now - timedelta(hours=24)).replace(tzinfo=None)
+    hace_7d = (now - timedelta(days=7)).replace(tzinfo=None)
+
+    # --- Pacientes ---
+    total_pacientes = db.query(func.count(Paciente.id)).scalar() or 0
+    pacientes_activos = db.query(func.count(Paciente.id)).filter(Paciente.fecha_alta.is_(None)).scalar() or 0
+    pacientes_dados_alta = total_pacientes - pacientes_activos
+
+    # --- Usuarios ---
+    total_usuarios = db.query(func.count(Usuario.id)).scalar() or 0
+    usuarios_activos = db.query(func.count(Usuario.id)).filter(Usuario.activo.is_(True)).scalar() or 0
+
+    usuarios_por_rol_rows = (
+        db.query(Usuario.rol, func.count(Usuario.id))
+        .group_by(Usuario.rol)
+        .all()
+    )
+    usuarios_por_rol = {
+        (row[0].value if hasattr(row[0], 'value') else str(row[0])): row[1]
+        for row in usuarios_por_rol_rows
+    }
+
+    # --- Actividad desde audit_logs ---
+    def count_accion(accion: AccionEnum, desde=None):
+        q = db.query(func.count(AuditLog.id)).filter(AuditLog.accion == accion)
+        if desde:
+            q = q.filter(AuditLog.timestamp >= desde)
+        return q.scalar() or 0
+
+    accesos_24h = (
+        db.query(func.count(AuditLog.id))
+        .filter(AuditLog.accion == AccionEnum.lectura, AuditLog.timestamp >= hace_24h)
+        .scalar() or 0
+    )
+    accesos_7d = (
+        db.query(func.count(AuditLog.id))
+        .filter(AuditLog.accion == AccionEnum.lectura, AuditLog.timestamp >= hace_7d)
+        .scalar() or 0
+    )
+    logins_fallidos_24h = count_accion(AccionEnum.login_fallido, hace_24h)
+    bloqueos_24h = count_accion(AccionEnum.bloqueo, hace_24h)
+    exportaciones_7d = count_accion(AccionEnum.exportacion, hace_7d)
+    accesos_emergencia_7d = count_accion(AccionEnum.acceso_emergencia, hace_7d)
+
+    # --- Logs totales y último ---
+    total_logs = db.query(func.count(AuditLog.id)).scalar() or 0
+    ultimo_log = db.query(AuditLog).order_by(AuditLog.seq.desc()).first()
+    ultimo_log_ts = ultimo_log.timestamp if ultimo_log else None
+
+    return MetricasOficial(
+        total_pacientes=total_pacientes,
+        pacientes_activos=pacientes_activos,
+        pacientes_dados_alta=pacientes_dados_alta,
+        total_usuarios=total_usuarios,
+        usuarios_activos=usuarios_activos,
+        usuarios_por_rol=usuarios_por_rol,
+        accesos_24h=accesos_24h,
+        accesos_7d=accesos_7d,
+        logins_fallidos_24h=logins_fallidos_24h,
+        bloqueos_24h=bloqueos_24h,
+        exportaciones_7d=exportaciones_7d,
+        accesos_emergencia_7d=accesos_emergencia_7d,
+        total_logs=total_logs,
+        ultimo_log_ts=ultimo_log_ts,
+        generado_en=now,
+    )
 
 
 @router.get("/alertas", response_model=ReporteAlertas, dependencies=[autorizado])

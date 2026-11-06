@@ -40,12 +40,14 @@ export const AuthProvider = ({ children }) => { // proveedor del contexto
 
   const login = async (email, password) => { // funcion para login
     try {
-      const formData = new FormData(); // crea formulario
-      formData.append('username', email); // añade email
-      formData.append('password', password); // añade password
+      const formData = new URLSearchParams(); // oauth2 espera application/x-www-form-urlencoded
+      formData.append('username', email); // el campo oauth2 se llama username, no email
+      formData.append('password', password); // contraseña en claro solo en transito https
       
-      console.log('login attempt:', email, API_CONFIG.URL);
-      const response = await axios.post(`${API_CONFIG.URL}/auth/login`, formData); // llama al endpoint de login
+      console.log('login attempt:', email, API_CONFIG.URL); // no loguea la contraseña
+      const response = await axios.post(`${API_CONFIG.URL}/auth/login`, formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, // requerido por OAuth2PasswordRequestForm
+      }); // llama al endpoint de login
       const { access_token } = response.data; // obtiene el token
       
       console.log('token received');

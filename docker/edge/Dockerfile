@@ -10,10 +10,13 @@ COPY frontend/package*.json ./
 # Instalar dependencias
 RUN npm ci
 
-# Copiar código fuente desde frontend/
+# copiar codigo fuente desde frontend/
 COPY frontend/ ./
 
-# Build del frontend
+# forzar /api: el backend no se publica en el host (puerto 8000 interno)
+ENV VITE_API_URL=/api
+
+# build del frontend
 RUN npm run build
 
 # Etapa 2: Nginx con frontend compilado

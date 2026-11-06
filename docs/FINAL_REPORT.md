@@ -2,7 +2,7 @@
 
 **Curso:** DS3031 - Ética y Seguridad de Datos  
 **Tipo de Proyecto:** Tipo 1 - Aplicación de seguridad de datos en caso de uso real  
-**Estudiante:** María Lazon  
+**Estudiantes:** María Fernanda Lazón y Christopher Pérez
 **Fecha:** Noviembre 2026
 
 ---
@@ -99,6 +99,30 @@ graph TB
 3. Backend FastAPI → PostgreSQL (red interna db_net)
 4. Todos los datos sensibles se cifran con AES-256-GCM antes de guardar en PostgreSQL
 5. Todas las acciones se registran en audit_logs con cadena SHA-256
+
+### 2.2.1 Evidencia visual (capturas)
+
+Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el flujo de transferencia del paciente demo (Bobby Jackson).
+
+**Login y roles**
+
+![Pantalla de inicio de sesión](images/login.png)
+
+![Dashboard del administrador del sistema](images/admin_sistema_dashboard.png)
+
+![Dashboard del personal administrativo de la clínica](images/admin_clinica_dashboard.png)
+
+![Dashboard del rol doctor](images/doctor_dashboard.png)
+
+**RBAC: el auditor no lista pacientes (403)**
+
+![Auditor: acceso a pacientes denegado](images/auditor_dashboard_denegado.png)
+
+![Auditor: solo logs de auditoría](images/auditor_logs.png)
+
+![Admin: consulta de logs](images/admin_sistema_logs.png)
+
+![JWT en cabecera Authorization al consultar logs](images/JWT_logs.png)
 
 ### 2.3 Modelo de Datos
 
@@ -268,6 +292,20 @@ graph TB
 - GET /pacientes/me/accesos: Lista paginada de accesos con nombre profesional, rol, timestamp
 - GET /pacientes/me/export: JSON con todos los datos descifrados, registrado como acción exportacion
 - PATCH /pacientes/{id}/transferir-doctor: Solo paciente puede transferir su propio historial, requiere confirmación explícita
+
+**Capturas del flujo de transferencia (Paciente Demo → cambio de médico):**
+
+![Bobby transfiere su historial a Dra. Ana Torres](images/bobby_tranfiere_ana.png)
+
+![Dra. Ana Torres no ve a Bobby Jackson en su lista](images/ana_no_bobby.png)
+
+![Dr. Luis Ramírez sí ve a Bobby tras la asignación](images/luis_si_bobby.png)
+
+![Dra. Ana Torres vuelve a ver a Bobby](images/ana_ahora_si_bobby.png)
+
+![Dr. Luis Ramírez ya no ve a Bobby](images/luis_ya_no_bobby.png)
+
+![Log de auditoría de la transferencia](images/logs_transferencia.png)
 
 ### 4.2 Consentimiento
 

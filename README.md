@@ -17,14 +17,23 @@ Plataforma web que permite a clínicas pequeñas y consultorios independientes c
 2. **Generar certificados:** `./scripts/gen_cert.sh`
 3. **Levantar servicios:** `./scripts/dev.sh up`
 4. **Sembrar datos de demo:** `./scripts/dev.sh seed`
-5. **Abrir aplicación:** https://localhost:8443 (aceptar certificado autofirmado o importar `certs/cert.pem` como confiable)
-6. **Usuarios demo:**
-   - admin@criptomed.local (DEMO_PASSWORD_ADMIN)
-   - doctor1@criptomed.local (DEMO_PASSWORD_DOCTOR)
-   - admin1@criptomed.local (DEMO_PASSWORD_ADMINISTRATIVO)
-   - auditor1@criptomed.local (DEMO_PASSWORD_AUDITOR)
-   - paciente1@criptomed.local (DEMO_PASSWORD_PACIENTE)
-   - Contraseña para todos: admin123
+5. **Abrir aplicación:** https://localhost:8443 (aceptar certificado autofirmado o importar `certs/cert.pem` como confiable). No uses `http://127.0.0.1:8000`: ese puerto no se publica al host.
+6. **Usuarios demo** (contraseñas en `.env`, variables `DEMO_PASSWORD_*`):
+   - `admin@criptomed.com` — admin (`DEMO_PASSWORD_ADMIN`)
+   - `doctor@criptomed.com` — Dra. Ana Torres (`DEMO_PASSWORD_DOCTOR`)
+   - `dr.ramirez@criptomed.com` — Dr. Luis Ramírez (`DEMO_PASSWORD_DOCTOR`)
+   - `dra.quispe@criptomed.com` — Dra. Carla Quispe (`DEMO_PASSWORD_DOCTOR`)
+   - `admin@clinica.com` — administrativo (`DEMO_PASSWORD_ADMINISTRATIVO`)
+   - `auditor@criptomed.com` — auditor (`DEMO_PASSWORD_AUDITOR`)
+   - `paciente@criptomed.com` — paciente demo (`DEMO_PASSWORD_PACIENTE`)
+
+![Login](docs/images/login.png)
+
+**Si el login falla con CSP / `AxiosError: Network Error`:** el front debe llamar a `/api` (mismo origen 8443), no a `127.0.0.1:8000`. Reconstruye el edge:
+
+```bash
+docker compose up -d --build edge
+```
 
 **Para reiniciar desde cero:** `./scripts/dev.sh reset`
 
@@ -371,7 +380,7 @@ Resultados tras remediación (Fase 2):
   - Art. 5: Medidas técnicas (cifrado, hashing, control de acceso) ✅
   - Art. 10: Notificación de incidentes a ANPD (48h) ✅
   - Art. 14: Derechos ARCO (acceso, portabilidad, control) ✅
-- **Reglamento D.S. 016-2024-JUS** – Reglamento de la Ley 29733 [VERIFICAR]
+- **Reglamento D.S. 016-2024-JUS** – Reglamento de la Ley 29733 (Decreto Supremo N° 016-2024-JUS, 30 de noviembre de 2024) ✅
 - **ANPD** – Autoridad Nacional de Protección de Datos Personales
 - **GDPR Art. 35** – Evaluación de Impacto en la Protección de Datos (DPIA) ✅
 - **ISO/IEC 29134** – Guía para evaluación de impacto en privacidad ✅
@@ -407,7 +416,7 @@ Resultados tras remediación (Fase 2):
 
 ## Créditos
 
-**Estudiante:** María Lazon  
+**Estudiantes:** María Fernanda Lazón y Christopher Pérez
 **Curso:** DS3031 - Ética y Seguridad de Datos  
-**Profesor:** [Nombre del profesor]  
+**Profesor:** José Carlos Pazos Ortiz
 **Fecha:** Noviembre 2026

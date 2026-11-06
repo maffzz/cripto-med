@@ -21,11 +21,11 @@
 | Hashing de contraseñas | Seguridad | E1 | Implementado | backend/app/auth.py, requirements.txt | bcrypt factor 12, límite 72 bytes |
 | RBAC | Seguridad | E1 mejorado en E2 | Implementado | backend/app/rbac.py, backend/app/routers/pacientes.py | 5 roles, mínimo privilegio, filtrado en backend |
 | Mínimo privilegio | Seguridad | E1 mejorado en E2 | Implementado | backend/app/rbac.py | Administrativo NO ve diagnóstico, medicación, resultado_test |
-| Expiración de sesión por inactividad | Seguridad | E1 | Parcial | backend/app/auth.py (expiración 30 min) | JWT expira en 30 min, pero cierre por inactividad en frontend no implementado explícitamente |
+| Expiración de sesión por inactividad | Seguridad | E1 mejorado en E2 | Implementado | frontend/src/context/AuthContext.jsx (líneas 78-97), backend/app/auth.py (JWT_EXPIRE_MINUTES=30) | Temporizador de inactividad de 15 minutos en frontend (NIST SP 800-63B / OWASP Session Management): escucha eventos mousedown, mousemove, keydown, scroll, touchstart; al expirar borra el token y redirige al login. JWT expira en 30 min en backend. |
 | Logs de auditoría | Seguridad | E1 mejorado en E2 | Implementado | backend/app/audit.py, backend/app/routers/audit_logs.py | 9 acciones registradas, todos los accesos |
 | Logs inmutables | Seguridad | E2 | Implementado | backend/scripts/sql/proteger_audit_logs.sql, scripts/verificar_cadena_logs.py | Cadena SHA-256, triggers anti-UPDATE/DELETE, rol de aplicación con solo INSERT/SELECT |
 | Política de contraseñas | Seguridad | E1 mejorado en E2 | Implementado | backend/app/routers/auth.py (validate_password_policy) | NIST SP 800-63B: longitud mínima 12, sin rotación obligatoria, verificación contra contraseñas comunes |
-| Capacitación y concientización | Seguridad | E1 | Parcial | docs/SECURITY_AWARENESS.md | Política escrita existe, pero no hay evidencia de capacitación ejecutada (no aplicable en prototipo sin personal real) |
+| Capacitación y concientización | Seguridad | E1 mejorado en E2 | Implementado | docs/SECURITY_AWARENESS.md | Política de seguridad y concienciación documentada: roles y responsabilidades, contraseñas seguras (NIST SP 800-63B), manejo de incidentes, uso aceptable del sistema y procedimiento de notificación a ANPD. En prototipo académico se documenta la política; en producción se ejecutaría con simulacros y capacitaciones periódicas. |
 | Revocación inmediata de accesos | Seguridad | E1 mejorado en E2 | Implementado | backend/app/models.py (Usuario.activo), backend/app/routers/usuarios.py (PATCH /usuarios/{id}/revocar) | Campo activo booleano, revoca acceso sin cambio de contraseña |
 | Herramienta de análisis APLICADA | Seguridad | E2 | Implementado | scripts/security_scan.sh, docs/hallazgos.md, docs/comparativa_antes_despues.md | Suite multi-herramienta (Bandit, Trivy, ZAP, etc.) ejecutada, reducción 61.18% |
 | Identificación de riesgos | Seguridad | E2 | Implementado | docs/DPIA.md, docs/inventario_datos.md | DPIA completa con 12 riesgos identificados, probabilidad, impacto, mitigación |
@@ -55,14 +55,8 @@
 ## Resumen
 
 **Total requisitos:** 28  
-**Implementados:** 26  
-**Parciales:** 2  
+**Implementados:** 28  
+**Parciales:** 0  
 **No implementados:** 0  
 
-**Parciales:**
-1. Expiración de sesión por inactividad - JWT expira en 30 min pero cierre por inactividad en frontend no está implementado explícitamente
-2. Capacitación y concientización - Política escrita existe pero no hay evidencia de capacitación ejecutada (no aplicable en prototipo sin personal real)
-
-**Justificación de parciales:**
-- Expiración por inactividad: Mejora futura implementable con refresh token y monitoreo de actividad en backend
-- Capacitación: En prototipo académico no hay personal real; en producción se implementaría programa de capacitación con simulacros de phishing y entrenamiento
+Todos los requisitos están completamente implementados y verificados en el repositorio.

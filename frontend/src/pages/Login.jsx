@@ -116,33 +116,34 @@ const Login = () => {
 
           {/* Test Users */}
           <div className="space-y-2 text-sm text-gray-600 bg-gray-50 rounded-lg p-4">
+            <p className="text-xs text-gray-500 mb-2">contraseñas: variables DEMO_PASSWORD_* del archivo .env</p> {/* no se muestran claves en claro */}
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-blue-500" />
-              <span><strong>Admin:</strong> admin@criptomed.com / admin123</span>
+              <span><strong>Admin:</strong> admin@criptomed.com</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-500" />
-              <span><strong>Dra. Ana Torres:</strong> ana.torres@criptomed.pe / doctor123</span>
+              <span><strong>Dra. Ana Torres:</strong> doctor@criptomed.com</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-500" />
-              <span><strong>Dr. Luis Ramírez:</strong> luis.ramirez@criptomed.pe / doctor123</span>
+              <span><strong>Dr. Luis Ramírez:</strong> dr.ramirez@criptomed.com</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-500" />
-              <span><strong>Dra. Carla Quispe:</strong> carla.quispe@criptomed.pe / doctor123</span>
+              <span><strong>Dra. Carla Quispe:</strong> dra.quispe@criptomed.com</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-purple-500" />
-              <span><strong>Paciente Demo:</strong> paciente.demo@criptomed.pe / demo123</span>
+              <span><strong>Paciente Demo:</strong> paciente@criptomed.com</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-yellow-500" />
-              <span><strong>Administrativo:</strong> admin@clinica.com / admin123</span>
+              <span><strong>Administrativo:</strong> admin@clinica.com</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-red-500" />
-              <span><strong>Auditor:</strong> auditor@criptomed.com / auditor123</span>
+              <span><strong>Auditor:</strong> auditor@criptomed.com</span>
             </div>
           </div>
         </div>

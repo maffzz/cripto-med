@@ -26,9 +26,9 @@ El almacenamiento web HTML5 (`localStorage`) es accesible por cualquier código 
 Se ha decidido **aceptar temporalmente este riesgo** en la Entrega 2 respaldado por cinco controles de endurecimiento y mitigación en profundidad:
 
 1. **Content Security Policy (CSP) Restrictiva (Paso 1.6a)**:
-   - Configurada tanto a nivel de cabecera HTTP en el Edge Nginx (`docker/edge/nginx.conf`) y backend FastAPI (`SecurityHeadersMiddleware`), como en el archivo HTML del cliente (`frontend/index.html`).
+   - Configurada en cabecera HTTP del Edge Nginx (`docker/edge/nginx.conf`) y en el backend FastAPI (`SecurityHeadersMiddleware`). No se duplica en un `<meta>` de `index.html`: el navegador intersecta ambas políticas y `frame-ancestors` se ignora en meta.
    - Política `script-src 'self'`: Impide la carga y ejecución de scripts provenientes de dominios de terceros o fuentes no autorizadas.
-   - Política `connect-src 'self' https://localhost:8443`: Impide que un script malicioso exfiltre datos hacia servidores externos controlados por el atacante.
+   - Política `connect-src 'self'`: el front solo llama a `/api` en el mismo origen (Nginx hace proxy al backend). No se permite `http://127.0.0.1:8000` porque ese puerto no se publica al host.
 
 2. **Ausencia Total de Renderizado Inseguro en React**:
    - Se auditó exhaustivamente la base de código del frontend confirmando que **no se utiliza `dangerouslySetInnerHTML`** en ningún componente. Todo el contenido dinámico es escapado automáticamente por el motor de React antes de su inserción en el DOM.

@@ -3,6 +3,14 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Heart, LogOut, LayoutDashboard, FileText, Shield, User, Activity, Moon, Sun, ShieldCheck } from 'lucide-react';
 
+const ROL_ES = {
+  admin: 'Admin',
+  doctor: 'Doctor',
+  administrativo: 'Administrativo',
+  auditor: 'Auditor',
+  paciente: 'Paciente',
+};
+
 const Layout = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -82,7 +90,7 @@ const Layout = () => {
                 <User className="w-5 h-5" />
                 <span className="font-medium">{user?.nombre}</span>
                 <span className={theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}>|</span>
-                <span className="text-primary-600 capitalize">{user?.rol}</span>
+                <span className="text-primary-600">{ROL_ES[user?.rol] || user?.rol}</span>
               </div>
               <button
                 onClick={logout}
