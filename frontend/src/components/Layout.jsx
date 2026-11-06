@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Heart, LogOut, LayoutDashboard, FileText, Shield, User, Activity, Moon, Sun } from 'lucide-react';
+import { Heart, LogOut, LayoutDashboard, FileText, Shield, User, Activity, Moon, Sun, ShieldCheck } from 'lucide-react';
 
 const Layout = () => {
   const { user, logout } = useAuth();
@@ -19,6 +19,10 @@ const Layout = () => {
 
   if (user?.rol === 'admin' || user?.rol === 'auditor') {
     navItems.push({ path: '/audit-logs', label: 'Logs de Auditoría', icon: Shield });
+  }
+
+  if (user?.rol === 'admin') {
+    navItems.push({ path: '/dashboard-oficial', label: 'Dashboard Oficial', icon: ShieldCheck });
   }
 
   return (

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'; // componente de dashboard
 import PacienteDetalle from './pages/PacienteDetalle'; // componente de detalle de paciente
 import AuditLog from './pages/AuditLog'; // componente de logs de auditoria
 import MiHistorial from './pages/MiHistorial'; // componente de historial del paciente
+import DashboardOficial from './pages/DashboardOficial'; // componente de dashboard oficial
 import Layout from './components/Layout'; // componente de layout
 
 // componente protegido que requiere autenticacion
@@ -44,6 +45,7 @@ function App() { // componente principal
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard-oficial" element={<DashboardOficial />} />
                 <Route path="/mi-historial" element={<MiHistorial />} />
                 <Route path="/paciente/:id" element={<PacienteDetalle />} />
                 <Route path="/audit-logs" element={<AuditLog />} />
