@@ -5,8 +5,6 @@ Plataforma web que permite a clínicas pequeñas y consultorios independientes c
 
 **Despliegue:** Docker Compose local con PostgreSQL 16, FastAPI (Python 3.12.7), React (Vite + Node 20.19.0) y Nginx 1.27 con TLS 1.3.
 
-**Estado:** Fase 4 completada (informe reescrito como narrativa de diseño con verificación de herramientas, DPIA y consideraciones éticas).
-
 ---
 
 ## Cómo ejecutar el proyecto
