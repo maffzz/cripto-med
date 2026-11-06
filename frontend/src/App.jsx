@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'; // componentes de routing
 import { AuthProvider, useAuth } from './context/AuthContext'; // proveedor y hook de autenticacion
+import { ThemeProvider } from './context/ThemeContext'; // proveedor de tema
 import Login from './pages/Login'; // componente de login
 import Dashboard from './pages/Dashboard'; // componente de dashboard
 import PacienteDetalle from './pages/PacienteDetalle'; // componente de detalle de paciente
@@ -35,23 +36,25 @@ const RoleBasedRedirect = () => {
 
 function App() { // componente principal
   return ( // retorna el router con todas las rutas
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Login />} />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<Layout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/mi-historial" element={<MiHistorial />} />
-              <Route path="/paciente/:id" element={<PacienteDetalle />} />
-              <Route path="/audit-logs" element={<AuditLog />} />
-              <Route path="/redirect" element={<RoleBasedRedirect />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Login />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<Layout />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/mi-historial" element={<MiHistorial />} />
+                <Route path="/paciente/:id" element={<PacienteDetalle />} />
+                <Route path="/audit-logs" element={<AuditLog />} />
+                <Route path="/redirect" element={<RoleBasedRedirect />} />
+              </Route>
             </Route>
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
