@@ -1,13 +1,26 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Lock, Mail, AlertCircle, CheckCircle, Heart } from 'lucide-react';
+import { Lock, Mail, AlertCircle, CheckCircle, Heart, LogIn } from 'lucide-react';
+
+// Usuarios de demo — contraseñas leídas de variables de entorno Vite
+// (se inyectan al build desde el .env vía docker-compose build args)
+const DEMO_USERS = [
+  { label: 'Admin',         email: 'admin@criptomed.com',      password: import.meta.env.VITE_DEMO_PASSWORD_ADMIN          || '', color: 'text-blue-600',   bg: 'hover:bg-blue-50',   rol: 'admin' },
+  { label: 'Dra. Torres',   email: 'doctor@criptomed.com',     password: import.meta.env.VITE_DEMO_PASSWORD_DOCTOR         || '', color: 'text-green-600',  bg: 'hover:bg-green-50',  rol: 'doctor' },
+  { label: 'Dr. Ramírez',   email: 'dr.ramirez@criptomed.com', password: import.meta.env.VITE_DEMO_PASSWORD_DOCTOR         || '', color: 'text-green-600',  bg: 'hover:bg-green-50',  rol: 'doctor' },
+  { label: 'Dra. Quispe',   email: 'dra.quispe@criptomed.com', password: import.meta.env.VITE_DEMO_PASSWORD_DOCTOR         || '', color: 'text-green-600',  bg: 'hover:bg-green-50',  rol: 'doctor' },
+  { label: 'Administrativo',email: 'admin@clinica.com',        password: import.meta.env.VITE_DEMO_PASSWORD_ADMINISTRATIVO || '', color: 'text-yellow-600', bg: 'hover:bg-yellow-50', rol: 'administrativo' },
+  { label: 'Auditor',       email: 'auditor@criptomed.com',    password: import.meta.env.VITE_DEMO_PASSWORD_AUDITOR        || '', color: 'text-red-600',    bg: 'hover:bg-red-50',    rol: 'auditor' },
+  { label: 'Paciente Demo', email: 'paciente@criptomed.com',   password: import.meta.env.VITE_DEMO_PASSWORD_PACIENTE       || '', color: 'text-purple-600', bg: 'hover:bg-purple-50', rol: 'paciente' },
+];
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activeUser, setActiveUser] = useState(null);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -25,6 +38,13 @@ const Login = () => {
       setError(result.error);
     }
     setLoading(false);
+  };
+
+  const fillUser = (user) => {
+    setEmail(user.email);
+    setPassword(user.password);
+    setActiveUser(user.email);
+    setError('');
   };
 
   return (
@@ -114,37 +134,35 @@ const Login = () => {
             <div className="flex-1 border-t border-gray-200"></div>
           </div>
 
-          {/* Test Users */}
-          <div className="space-y-2 text-sm text-gray-600 bg-gray-50 rounded-lg p-4">
-            <p className="text-xs text-gray-500 mb-2">contraseñas: variables DEMO_PASSWORD_* del archivo .env</p> {/* no se muestran claves en claro */}
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-blue-500" />
-              <span><strong>Admin:</strong> admin@criptomed.com</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-500" />
-              <span><strong>Dra. Ana Torres:</strong> doctor@criptomed.com</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-500" />
-              <span><strong>Dr. Luis Ramírez:</strong> dr.ramirez@criptomed.com</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-500" />
-              <span><strong>Dra. Carla Quispe:</strong> dra.quispe@criptomed.com</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-purple-500" />
-              <span><strong>Paciente Demo:</strong> paciente@criptomed.com</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-yellow-500" />
-              <span><strong>Administrativo:</strong> admin@clinica.com</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-red-500" />
-              <span><strong>Auditor:</strong> auditor@criptomed.com</span>
-            </div>
+          {/* Demo Users — click para autorellenar */}
+          <div className="space-y-1">
+            <p className="text-xs text-gray-400 mb-2 text-center">Haz clic en un usuario para autorellenar el formulario</p>
+            {DEMO_USERS.map((u) => (
+              <button
+                key={u.email}
+                type="button"
+                onClick={() => fillUser(u)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-all duration-150 text-left
+                  ${activeUser === u.email
+                    ? 'border-primary-400 bg-primary-50 ring-1 ring-primary-300'
+                    : 'border-gray-200 bg-gray-50 ' + u.bg
+                  }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <CheckCircle className={`w-4 h-4 flex-shrink-0 ${u.color}`} />
+                  <div className="min-w-0">
+                    <span className={`text-xs font-semibold ${u.color} block`}>{u.label}</span>
+                    <span className="text-xs text-gray-500 truncate block">{u.email}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                  <code className="text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-700 font-mono">
+                    {u.password}
+                  </code>
+                  <LogIn className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 

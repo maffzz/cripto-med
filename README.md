@@ -18,14 +18,14 @@ Plataforma web que permite a clínicas pequeñas y consultorios independientes c
 3. **Levantar servicios:** `./scripts/dev.sh up`
 4. **Sembrar datos de demo:** `./scripts/dev.sh seed`
 5. **Abrir aplicación:** https://localhost:8443 (aceptar certificado autofirmado o importar `certs/cert.pem` como confiable). No uses `http://127.0.0.1:8000`: ese puerto no se publica al host.
-6. **Usuarios demo** (contraseñas en `.env`, variables `DEMO_PASSWORD_*`):
-   - `admin@criptomed.com` — admin (`DEMO_PASSWORD_ADMIN`)
-   - `doctor@criptomed.com` — Dra. Ana Torres (`DEMO_PASSWORD_DOCTOR`)
-   - `dr.ramirez@criptomed.com` — Dr. Luis Ramírez (`DEMO_PASSWORD_DOCTOR`)
-   - `dra.quispe@criptomed.com` — Dra. Carla Quispe (`DEMO_PASSWORD_DOCTOR`)
-   - `admin@clinica.com` — administrativo (`DEMO_PASSWORD_ADMINISTRATIVO`)
-   - `auditor@criptomed.com` — auditor (`DEMO_PASSWORD_AUDITOR`)
-   - `paciente@criptomed.com` — paciente demo (`DEMO_PASSWORD_PACIENTE`)
+6. **Usuarios demo** (contraseñas visibles en la pantalla de login — click para autorellenar):
+   - `admin@criptomed.com` → `b8lNNWqSlSKy` — admin
+   - `doctor@criptomed.com` → `5BznGCUkosJa` — Dra. Ana Torres (doctor)
+   - `dr.ramirez@criptomed.com` → `5BznGCUkosJa` — Dr. Luis Ramírez (doctor)
+   - `dra.quispe@criptomed.com` → `5BznGCUkosJa` — Dra. Carla Quispe (doctor)
+   - `admin@clinica.com` → `pa_w7hTW1jSz` — María López (administrativo)
+   - `auditor@criptomed.com` → `4PUoNu7OMXDA` — Auditor Externo (auditor)
+   - `paciente@criptomed.com` → `dbeW0WZR!jsf` — Paciente Demo (paciente)
 
 ![Login](docs/images/login.png)
 

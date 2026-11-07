@@ -94,6 +94,13 @@ services:
     build:
       context: .
       dockerfile: docker/edge/Dockerfile
+      # Inyectar contraseñas de demo al build para que el frontend las muestre correctamente
+      args:
+        DEMO_PASSWORD_ADMIN: ${DEMO_PASSWORD_ADMIN}
+        DEMO_PASSWORD_DOCTOR: ${DEMO_PASSWORD_DOCTOR}
+        DEMO_PASSWORD_ADMINISTRATIVO: ${DEMO_PASSWORD_ADMINISTRATIVO}
+        DEMO_PASSWORD_AUDITOR: ${DEMO_PASSWORD_AUDITOR}
+        DEMO_PASSWORD_PACIENTE: ${DEMO_PASSWORD_PACIENTE}
     container_name: criptomed_edge
     ports:
       - "8443:8443"

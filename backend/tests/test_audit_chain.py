@@ -16,39 +16,14 @@ from app.audit import log_action, calcular_hash_log, format_iso_utc, GENESIS_HAS
 
 
 @pytest.fixture(scope="function")
-def db_session():
-    """Crea tablas y sesión de BD para la prueba."""
+def db_session(clean_audit_logs):
+    """
+    Crea tablas y sesión de BD para la prueba.
+    Depende de clean_audit_logs (conftest) para limpiar audit_logs con permisos de owner.
+    """
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
-    # Limpiar logs de prueba anteriores
-    try:
-        session.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER ALL;"))
-        session.commit()
-    except Exception:
-        pass
-
-    session.query(AuditLog).delete()
-    session.commit()
-
-    try:
-        session.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER ALL;"))
-        session.commit()
-    except Exception:
-        pass
-
     yield session
-
-    # Teardown: limpiar registros de prueba para no dejar la cadena en estado alterado
-    try:
-        session.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER ALL;"))
-        session.commit()
-        session.query(AuditLog).delete()
-        session.commit()
-        session.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER ALL;"))
-        session.commit()
-    except Exception:
-        pass
-
     session.close()
 
 
@@ -136,7 +111,7 @@ def test_cadena_logs_cinco_eventos_integra(db_session, test_user):
     assert mensaje == "Cadena íntegra"
 
 
-def test_deteccion_alteracion_en_fila_intermedia(db_session, test_user):
+def test_deteccion_alteracion_en_fila_intermedia(db_session, test_user, owner_engine):
     """Altera maliciosamente un registro intermedio desactivando triggers y valida que la verificación detecte la falla."""
     for i in range(5):
         log_action(
@@ -151,25 +126,29 @@ def test_deteccion_alteracion_en_fila_intermedia(db_session, test_user):
     valido_inicial, _ = verificar_cadena_en_memoria(db_session)
     assert valido_inicial is True
 
-    # Alteramos el recurso de la fila intermedia desactivando el trigger temporalmente (simula atacante con superusuario)
+    # Alteramos el recurso de la fila intermedia desactivando el trigger temporalmente
+    # usando el engine owner (requiere privilegios de superusuario/owner)
+    from sqlalchemy.orm import sessionmaker as sm
+    OSession = sm(bind=owner_engine)
+    owner_sess = OSession()
     try:
-        db_session.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER ALL;"))
-        db_session.commit()
-    except Exception:
-        pass
+        owner_sess.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER ALL;"))
+        owner_sess.commit()
 
-    logs = db_session.query(AuditLog).order_by(AuditLog.seq.asc()).all()
-    tercer_log = logs[2]
-    tercer_seq = tercer_log.seq
+        logs = owner_sess.query(AuditLog).order_by(AuditLog.seq.asc()).all()
+        tercer_log = logs[2]
+        tercer_seq = tercer_log.seq
 
-    tercer_log.recurso = "paciente:uuid-ALTERADO-MALICIOSO"
-    db_session.commit()
+        tercer_log.recurso = "paciente:uuid-ALTERADO-MALICIOSO"
+        owner_sess.commit()
 
-    try:
-        db_session.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER ALL;"))
-        db_session.commit()
-    except Exception:
-        pass
+        owner_sess.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER ALL;"))
+        owner_sess.commit()
+    finally:
+        owner_sess.close()
+
+    # Refrescar la sesión de test para ver el cambio
+    db_session.expire_all()
 
     # La verificación forense debe detectar la rotura de integridad en la fila alterada
     valido_post_alteracion, mensaje_falla = verificar_cadena_en_memoria(db_session)

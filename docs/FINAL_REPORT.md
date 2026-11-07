@@ -45,6 +45,8 @@ Las pequeñas clínicas en Perú enfrentan un problema crítico: los historiales
 
 **Nota sobre datos sintéticos:** El dataset no contiene pacientes reales, pero el sistema se diseñó como si los contuviera. No se usan datos reales en pruebas para evitar exposición de información sensible durante desarrollo.
 
+**Nota sobre credenciales de demo:** Las credenciales de los 7 usuarios de demo se muestran directamente en la pantalla de login (click para autorellenar), lo que facilita la evaluación y la demo en vivo. Esto es intencional para un entorno académico local con Docker; en producción no se expondrían credenciales en la interfaz.
+
 ---
 
 ## 2. Solución y Arquitectura

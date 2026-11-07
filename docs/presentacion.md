@@ -148,6 +148,7 @@
 **Viñetas:**
 - **8 herramientas:** Bandit · pip-audit · npm audit · Gitleaks · Hadolint · Trivy · testssl.sh · OWASP ZAP
 - **Antes:** 3,596 hallazgos · **Después:** 1,396 hallazgos → **reducción 61.18%**
+- La mayor parte son de Trivy (vulnerabilidades del SO base de las imágenes); en código propio: 0 hallazgos altos sin resolver
 - Correcciones principales:
   - Inyección SQL en `verificar_restauracion.py` (Bandit)
   - `python-multipart` y `python-dotenv` actualizados (pip-audit CVEs)
@@ -268,3 +269,4 @@
 | ¿Por qué certificado autofirmado? | Para demo local. En producción: Let's Encrypt o CA corporativa. TLS 1.3 es el mismo independientemente de quién firma. |
 | ¿Quién puede alterar los logs? | Solo un superusuario de PostgreSQL puede desactivar los triggers. `app_user` solo tiene INSERT/SELECT. Si alguien altera una fila, `verificar_cadena_logs.py` lo detecta. |
 | ¿Qué es el break-glass? | Acceso de emergencia para doctores no asignados: 30 min, requiere justificación ≥20 chars, aparece como alerta ALTA para el auditor. Responde a la tensión ética seguridad vs. atención oportuna. |
+| ¿Por qué muestras las contraseñas en el login? | Es un entorno académico local con Docker y datos 100% sintéticos. Las contraseñas en el login facilitan la evaluación. En producción no se harían visibles; además, las contraseñas del `.env` cumplen la política NIST SP 800-63B (≥12 caracteres, sin patrones comunes). |

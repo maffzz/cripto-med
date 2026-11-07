@@ -205,14 +205,22 @@ cmd_deploy() {
     success "¡Despliegue completo!"
     echo -e "${GREEN}${BOLD}   https://localhost:8443${NC}"
     echo ""
-    echo -e "  Usuarios demo (contraseñas en .env):"
-    echo -e "  • admin@criptomed.com        (DEMO_PASSWORD_ADMIN)"
-    echo -e "  • doctor@criptomed.com       (DEMO_PASSWORD_DOCTOR)"
-    echo -e "  • dr.ramirez@criptomed.com   (DEMO_PASSWORD_DOCTOR)"
-    echo -e "  • dra.quispe@criptomed.com   (DEMO_PASSWORD_DOCTOR)"
-    echo -e "  • admin@clinica.com          (DEMO_PASSWORD_ADMINISTRATIVO)"
-    echo -e "  • auditor@criptomed.com      (DEMO_PASSWORD_AUDITOR)"
-    echo -e "  • paciente@criptomed.com     (DEMO_PASSWORD_PACIENTE)"
+    echo -e "  ${BOLD}Usuarios demo:${NC}"
+
+    # Leer contraseñas del .env para mostrarlas
+    pw_admin=$(grep '^DEMO_PASSWORD_ADMIN='        "$ENV_FILE" | cut -d= -f2- | tr -d '"' | tr -d "'")
+    pw_doctor=$(grep '^DEMO_PASSWORD_DOCTOR='       "$ENV_FILE" | cut -d= -f2- | tr -d '"' | tr -d "'")
+    pw_admin_c=$(grep '^DEMO_PASSWORD_ADMINISTRATIVO=' "$ENV_FILE" | cut -d= -f2- | tr -d '"' | tr -d "'")
+    pw_auditor=$(grep '^DEMO_PASSWORD_AUDITOR='      "$ENV_FILE" | cut -d= -f2- | tr -d '"' | tr -d "'")
+    pw_paciente=$(grep '^DEMO_PASSWORD_PACIENTE='    "$ENV_FILE" | cut -d= -f2- | tr -d '"' | tr -d "'")
+
+    printf "  %-36s %s\n" "admin@criptomed.com"     "$pw_admin"
+    printf "  %-36s %s\n" "doctor@criptomed.com"    "$pw_doctor"
+    printf "  %-36s %s\n" "dr.ramirez@criptomed.com" "$pw_doctor"
+    printf "  %-36s %s\n" "dra.quispe@criptomed.com" "$pw_doctor"
+    printf "  %-36s %s\n" "admin@clinica.com"        "$pw_admin_c"
+    printf "  %-36s %s\n" "auditor@criptomed.com"    "$pw_auditor"
+    printf "  %-36s %s\n" "paciente@criptomed.com"   "$pw_paciente"
     echo -e "${GREEN}${BOLD}═══════════════════════════════════════${NC}\n"
 }
 
@@ -248,10 +256,18 @@ cmd_down() {
 # ---------------------------------------------------------------------------
 
 cmd_reset() {
-    warn "Esto borrará TODOS los datos (volumen pgdata) y redesplegará desde cero."
-    warn "¿Continuar? (s/N)"
-    read -r response
-    if [[ "$response" =~ ^([sS][iI]|[sS])$ ]]; then
+    # Con --yes/-y omite la confirmación (útil para demo automatizada)
+    if [[ "${2:-}" == "--yes" ]] || [[ "${2:-}" == "-y" ]]; then
+        confirmed=true
+    else
+        warn "Esto borrará TODOS los datos (volumen pgdata) y redesplegará desde cero."
+        warn "¿Continuar? (s/N)"
+        read -r response
+        confirmed=false
+        [[ "$response" =~ ^([sS][iI]|[sS])$ ]] && confirmed=true
+    fi
+
+    if $confirmed; then
         step "Deteniendo servicios y borrando volúmenes..."
         cd "$PROJECT_ROOT"
         $COMPOSE down -v
@@ -335,6 +351,7 @@ show_help() {
     echo "  up       - Build, levanta servicios y hace seed automático"
     echo "  seed     - Solo re-ejecuta el seed (rehashea contraseñas del .env actual)"
     echo "  reset    - Borra volúmenes y repite deploy completo (pide confirmación)"
+    echo "  reset --yes - Reset sin confirmación (útil para demos automatizadas)"
     echo "  down     - Detiene y elimina contenedores"
     echo ""
     echo -e "${BOLD}Operación:${NC}"
@@ -362,7 +379,7 @@ case "${1:-help}" in
     up)       cmd_up ;;
     seed)     cmd_seed ;;
     down)     cmd_down ;;
-    reset)    cmd_reset ;;
+    reset)    cmd_reset "$@" ;;
     logs)     cmd_logs "$@" ;;
     ps)       cmd_ps ;;
     test)     cmd_test ;;

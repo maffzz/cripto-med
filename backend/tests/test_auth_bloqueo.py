@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 from app.main import app
 from app.database import SessionLocal, engine, Base
@@ -20,41 +19,23 @@ from app.audit import log_action
 
 
 @pytest.fixture(scope="function")
-def db_session():
-    """Fixture de base de datos con limpieza de registros de prueba."""
+def db_session(clean_audit_logs):
+    """Fixture de base de datos con limpieza de registros de prueba (usa clean_audit_logs del conftest)."""
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
-    
-    # Limpiar logs y usuarios previos de prueba
-    try:
-        session.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER ALL;"))
-        session.commit()
-    except Exception:
-        pass
 
-    session.query(AuditLog).delete()
+    # Limpiar usuarios de prueba anteriores (sin trigger que lo impida)
     session.query(Usuario).filter(Usuario.email.like("%@testbloqueo.local")).delete()
     session.commit()
 
-    try:
-        session.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER ALL;"))
-        session.commit()
-    except Exception:
-        pass
-
     yield session
 
-    # Teardown
+    # Teardown: limpiar usuarios de prueba
     try:
-        session.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER ALL;"))
-        session.commit()
-        session.query(AuditLog).delete()
         session.query(Usuario).filter(Usuario.email.like("%@testbloqueo.local")).delete()
         session.commit()
-        session.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER ALL;"))
-        session.commit()
     except Exception:
-        pass
+        session.rollback()
 
     session.close()
 
@@ -201,7 +182,7 @@ def test_desbloqueo_automatico_tras_expiracion(client, db_session, user_bloqueo)
     assert user_bloqueo.bloqueado_hasta is None
 
 
-def test_alertas_fuerza_bruta_y_horario_y_volumen(client, db_session, admin_user, user_bloqueo):
+def test_alertas_fuerza_bruta_y_horario_y_volumen(client, db_session, admin_user, user_bloqueo, owner_engine):
     """Verifica la detección de las 3 anomalías en GET /audit-logs/alertas."""
     now = datetime.now(timezone.utc)
     token_admin = create_access_token(data={"sub": admin_user.email})
@@ -219,20 +200,27 @@ def test_alertas_fuerza_bruta_y_horario_y_volumen(client, db_session, admin_user
         )
 
     # 2. Simular lectura fuera de horario laboral (ej: 23:00 hora de Lima -> 04:00 UTC)
-    # Creamos un log con timestamp de hace 2 horas pero hora local 23:30 (Lima UTC-5)
-    # Por ejemplo: hoy a las 04:30 UTC
+    # Insertamos directamente con owner_engine para saltear el trigger de hashing
+    from sqlalchemy.orm import sessionmaker as sm
+    from sqlalchemy import text as sql_text
+    OSession = sm(bind=owner_engine)
+    owner_sess = OSession()
     ts_nocturno = datetime(now.year, now.month, now.day, 4, 30, 0, tzinfo=timezone.utc)
-    log_fuera_horario = AuditLog(
-        usuario_id=user_bloqueo.id,
-        accion=AccionEnum.lectura,
-        recurso="paciente:historia-nocturna",
-        ip_origen="192.168.1.99",
-        timestamp=ts_nocturno,
-        hash_prev="0"*64,
-        hash_actual="dummy_hash"
-    )
-    db_session.add(log_fuera_horario)
-    db_session.commit()
+    import hashlib, uuid as uuid_mod
+    dummy_id = str(uuid_mod.uuid4())
+    dummy_hash = hashlib.sha256(b"fuera_horario_dummy").hexdigest()
+    try:
+        owner_sess.execute(sql_text("ALTER TABLE audit_logs DISABLE TRIGGER ALL;"))
+        owner_sess.execute(sql_text("""
+            INSERT INTO audit_logs (id, seq, hash_prev, hash_actual, usuario_id, accion, recurso, timestamp, ip_origen, detalle)
+            VALUES (:id, nextval('audit_logs_seq'), :hp, :ha, :uid, 'lectura', 'paciente:historia-nocturna', :ts, '192.168.1.99', NULL)
+        """), {"id": dummy_id, "hp": "0"*64, "ha": dummy_hash, "uid": str(user_bloqueo.id), "ts": ts_nocturno})
+        owner_sess.execute(sql_text("ALTER TABLE audit_logs ENABLE TRIGGER ALL;"))
+        owner_sess.commit()
+    except Exception:
+        owner_sess.rollback()
+    finally:
+        owner_sess.close()
 
     # 3. Simular volumen anómalo: 35 lecturas distintas en la última hora
     for i in range(35):
