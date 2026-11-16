@@ -13,6 +13,14 @@ from app.database import SessionLocal
 from app.models import Usuario, Paciente, DiagnosticoCIE10, RolEnum
 from app.crypto import encrypt
 
+
+def demo_password(name: str) -> str:
+    password = os.getenv(name)
+    if not password:
+        raise RuntimeError(f"Falta {name}; configura credenciales demo seguras en .env.")
+    return password
+
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
@@ -26,31 +34,31 @@ def cargar_usuarios_demo(db: Session) -> int:
     usuarios = [
         {
             "username": "admin",
-            "password": os.getenv("DEMO_PASSWORD_ADMIN", "admin123"),
+            "password": demo_password("DEMO_PASSWORD_ADMIN"),
             "rol": RolEnum.ADMIN,
             "email": "admin@criptomed.local"
         },
         {
             "username": "doctor1",
-            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "doctor123"),
+            "password": demo_password("DEMO_PASSWORD_DOCTOR"),
             "rol": RolEnum.DOCTOR,
             "email": "doctor1@criptomed.local"
         },
         {
             "username": "admin1",
-            "password": os.getenv("DEMO_PASSWORD_ADMINISTRATIVO", "admin123"),
+            "password": demo_password("DEMO_PASSWORD_ADMINISTRATIVO"),
             "rol": RolEnum.ADMINISTRATIVO,
             "email": "admin1@criptomed.local"
         },
         {
             "username": "auditor1",
-            "password": os.getenv("DEMO_PASSWORD_AUDITOR", "auditor123"),
+            "password": demo_password("DEMO_PASSWORD_AUDITOR"),
             "rol": RolEnum.AUDITOR,
             "email": "auditor1@criptomed.local"
         },
         {
             "username": "paciente1",
-            "password": os.getenv("DEMO_PASSWORD_PACIENTE", "paciente123"),
+            "password": demo_password("DEMO_PASSWORD_PACIENTE"),
             "rol": RolEnum.PACIENTE,
             "email": "paciente1@criptomed.local"
         }

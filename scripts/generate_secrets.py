@@ -79,9 +79,9 @@ def generate_env_from_example():
         replaced = False
         for key, value in secrets_map.items():
             if line.startswith(f"{key}="):
-                if "cambia-esto" in line or "cambia esto" in line.lower():
-                    line = f"{key}={value}\n"
-                    replaced = True
+                line = f"{key}={value}\n"
+                replaced = True
+                break
         if not replaced and line.startswith("DATABASE_URL="):
             if "cambia-esto" in line:
                 import re

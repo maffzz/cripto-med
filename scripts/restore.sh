@@ -65,7 +65,7 @@ docker compose --profile tools run --rm \
 
     echo "2. Descifrando dump con GPG (AES-256) y restaurando en ${RESTORE_DB}..."
     gpg --batch --yes --decrypt --passphrase "$BACKUP_PASSPHRASE" "$BACKUP_PATH" | \
-      pg_restore -h db -U "$POSTGRES_USER" -d "$RESTORE_DB" --no-owner --role="$POSTGRES_USER" || true
+      pg_restore -h db -U "$POSTGRES_USER" -d "$RESTORE_DB" --no-owner --role="$POSTGRES_USER"
 '
 
 END_TIME=$(date +%s)

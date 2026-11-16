@@ -63,16 +63,20 @@ def verificar_restauracion():
     with engine_orig.connect() as conn_orig, engine_rest.connect() as conn_rest:
         for tabla in tablas:
             query = QUERIES_CONTEO.get(tabla)
-            if not query:
+            if query is None:
                 continue
             try:
                 cnt_orig = conn_orig.execute(query).scalar()
-            except Exception:
-                cnt_orig = 0
+            except Exception as e:
+                print(f"❌ Error contando {tabla} en la base original: {e}")
+                fallas += 1
+                continue
             try:
                 cnt_rest = conn_rest.execute(query).scalar()
             except Exception as e:
-                cnt_rest = f"Error ({e})"
+                print(f"❌ Error contando {tabla} en la base restaurada: {e}")
+                fallas += 1
+                continue
 
             if cnt_orig == cnt_rest:
                 estado = "✅ COINCIDE"

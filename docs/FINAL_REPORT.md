@@ -1,7 +1,7 @@
 # Informe Final - CriptoMed: Sistema de Gestión de Historiales Médicos con Seguridad de Datos
 
 **Curso:** DS3031 - Ética y Seguridad de Datos  
-**Tipo de Proyecto:** Tipo 1 - Aplicación de seguridad de datos en caso de uso real  
+**Tipo de Proyecto:** Tipo 2 - Proyecto de Ética y Seguridad de Datos
 **Estudiantes:** María Fernanda Lazón y Christopher Pérez
 **Fecha:** Noviembre 2026
 
@@ -9,18 +9,18 @@
 
 ## Resumen Ejecutivo
 
-CriptoMed es una plataforma web de gestión de historiales médicos diseñada para pequeñas clínicas en Perú que actualmente manejan datos de pacientes de forma insegura (papel o spreadsheets sin protección). El sistema centraliza historiales médicos, implementa control de acceso basado en roles (RBAC), cifrado de datos sensibles con AES-256-GCM, autenticación con JWT, y logs de auditoría con cadena de hashes SHA-256. El proyecto implementa medidas técnicas orientadas a apoyar las obligaciones de la Ley Peruana N.° 29733, pero esta documentación no acredita por sí sola el cumplimiento legal. La DPIA limita el estado actual a demostraciones con datos sintéticos.
+CriptoMed es un prototipo académico de gestión de historiales médicos para demostrar controles de acceso, cifrado de campos seleccionados, autenticación y auditoría. Está limitado a demostraciones locales con datos sintéticos: la DPIA identifica riesgo residual alto de retención y la documentación no acredita cumplimiento legal ni autorización para datos reales.
 
 **Stack técnico:** Backend (FastAPI + Python 3.12.7), Base de datos (PostgreSQL 16 en Docker Compose), Frontend (React + Vite + Node 20.19.0), Edge Nginx con TLS 1.3, Cifrado (AES-256-GCM con llaves versionadas), Hashing (bcrypt factor 12), Autenticación (JWT HS256).
 
-**Evolución del despliegue:** En la Entrega 1 el sistema se desplegó en Render y GitHub Pages; para la Entrega 2 se migró a un despliegue local con Docker Compose para controlar el aislamiento de red, la terminación TLS y la gestión de llaves. Esta decisión mejora la seguridad al eliminar dependencias de servicios externos y permite reproducibilidad completa del entorno.
+**Evolución del despliegue:** En la Entrega 1 el sistema se desplegó en Render y GitHub Pages; para la Entrega 2 se preparó un despliegue local con Docker Compose. El 16 de noviembre de 2026 se reconstruyó y reinició el stack conservando volúmenes; los ocho checks de `scripts/verificar_despliegue.sh` pasaron (TLS 1.3, puertos, salud, login, UID del backend, inspecciones de imágenes/config e imágenes requeridas).
 
 **Resultados clave:**
 - Reducción de tiempo de acceso a historiales de ~10 min a <30 seg
-- 100% de campos sensibles cifrados en reposo con AES-256-GCM (nombre, diagnóstico, medicación, resultado_test, monto_facturado)
-- 100% de accesos registrados en logs de auditoría inmutables con cadena SHA-256
+- Cinco campos cifrados en reposo con AES-256-GCM (nombre, diagnóstico, medicación, resultado_test, monto_facturado); otros datos de salud/cuasi-identificadores no están cifrados campo por campo
+- Acciones instrumentadas en logs con cadena SHA-256 y restricciones de escritura; no hay anclaje externo y un administrador privilegiado puede modificar controles
 - 5 roles implementados con principio de mínimo privilegio (admin, doctor, administrativo, auditor, paciente)
-- Verificación con herramientas de seguridad (Bandit, pip-audit, npm audit, Gitleaks, Hadolint, Trivy, testssl.sh, OWASP ZAP) mostrando reducción del 61.18% en hallazgos tras remediación
+- Escaneos de seguridad históricos (Bandit, pip-audit, npm audit, Gitleaks, Hadolint, Trivy, testssl.sh, OWASP ZAP) reportan una reducción del 61.18%; no se repitieron en esta revisión y quedan hallazgos pendientes
 - DPIA documentada en seis pasos, con análisis LINDDUN y 12 riesgos; retención indefinida permanece alta y bloquea el uso con datos reales hasta su mitigación y reevaluación
 
 ---
@@ -35,7 +35,7 @@ Las pequeñas clínicas en Perú enfrentan un problema crítico: los historiales
 
 **Contexto:** Una pequeña clínica en Lima con 3 doctores, 2 administrativos, y ~55,000 pacientes registrados históricamente. Los historiales médicos se almacenan en carpetas físicas en un archivo. Los doctores necesitan ~10 minutos para encontrar un historial específico. No hay registro de quién accede a qué historiales. Los datos de diagnóstico y medicación están expuestos a cualquier persona con acceso al archivo.
 
-**Solución:** CriptoMed centraliza los historiales médicos en una base de datos segura, permite acceso rápido (<30 seg), registra todos los accesos en logs inmutables, y cifra datos sensibles para proteger la privacidad de los pacientes.
+**Solución:** CriptoMed ofrece una demo local de historiales sintéticos con controles de acceso y cifrado de cinco campos. Una consulta interna se reporta bajo 30 segundos; la comparación con 10 minutos es una estimación frente al flujo manual, no un estudio cronometrado en una clínica. Los eventos instrumentados se guardan en una cadena de auditoría con controles de integridad, no inmutable ante un administrador privilegiado.
 
 ### 1.3 Datasets Utilizados
 
@@ -99,8 +99,8 @@ graph TB
 1. Navegador → Edge Nginx (TLS 1.3)
 2. Edge Nginx → Backend FastAPI (red interna app_net)
 3. Backend FastAPI → PostgreSQL (red interna db_net)
-4. Todos los datos sensibles se cifran con AES-256-GCM antes de guardar en PostgreSQL
-5. Todas las acciones se registran en audit_logs con cadena SHA-256
+4. Cinco campos de paciente se cifran con AES-256-GCM antes de guardarse; otros datos personales/de salud no están cifrados campo por campo
+5. Las acciones instrumentadas se registran en `audit_logs` con cadena SHA-256; no se ha demostrado cobertura de todos los accesos
 
 ### 2.2.1 Evidencia visual (capturas)
 
@@ -180,11 +180,11 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 
 ### 3.3 Autenticación e Identidad
 
-**Decisión:** JWT con algoritmo HS256, expiración corta (30 minutos), y verificación de estado activo en cada request.  
+**Decisión:** JWT con algoritmo HS256, expiración configurada por `JWT_EXPIRE_MINUTES`, y verificación de estado activo en cada request. La configuración de ejemplo establece 30 minutos; el fallback del backend es 15 minutos.
 **Por qué:** JWT es estándar para APIs REST (RFC 7519). HS256 es más simple que RSA y suficiente para llaves simétricas bien gestionadas. Expiración corta reduce riesgo de tokens robados. Verificación de estado activo permite revocación inmediata.  
 **Estándar:** RFC 7519 (JWT), RFC 8725 (JWT Best Current Practices), NIST SP 800-63B (authenticator lifecycle).  
 **Alternativa descartada:** Sesiones en servidor - no escala horizontalmente, requiere stateful backend.  
-**Evidencia:** `backend/app/auth.py` (JWT con HS256, expiración 30 min, verificación de activo), `backend/app/routers/auth.py` (login con bloqueo por intentos fallidos).
+**Evidencia:** `backend/app/config.py` (valor de fallback), `.env.example` (valor de despliegue de ejemplo), `backend/app/auth.py` (JWT HS256 y verificación de activo), `backend/app/routers/auth.py` (login con bloqueo por intentos fallidos).
 
 **Implementación:**
 - Contraseñas hasheadas con bcrypt factor 12 (OWASP Password Storage Cheat Sheet)
@@ -210,8 +210,8 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 
 ### 3.5 Trazabilidad (Logs de Auditoría)
 
-**Decisión:** Logs de auditoría inmutables mediante cadena de hashes SHA-256. Trigger anti-UPDATE/DELETE en tabla audit_logs. Rol de aplicación (APP_DB_USER) con solo INSERT y SELECT sobre audit_logs.  
-**Por qué:** Detecta alteración de logs (inmutabilidad). Previne insider threat que borre evidencia. Cumple con NIST SP 800-92 (logging) y Ley 29733 (auditoría).  
+**Decisión:** Logs de auditoría con cadena de hashes SHA-256 y evidencia de alteración. Trigger anti-UPDATE/DELETE en tabla audit_logs. Rol de aplicación (APP_DB_USER) con solo INSERT y SELECT sobre audit_logs.
+**Por qué:** Los controles detectan modificaciones en la cadena y limitan la escritura del rol de aplicación; no impiden que un administrador de base de datos con privilegios altere registros o desactive triggers. No se afirma inmutabilidad absoluta ni cumplimiento legal por este control.
 **Estándar:** NIST SP 800-92 (Guide to Computer Security Log Management), OWASP Logging Cheat Sheet.  
 **Alternativa descartada:** Logs comunes sin integridad - pueden alterarse sin rastro.  
 **Evidencia:** `backend/app/audit.py` (cadena SHA-256 con pg_advisory_xact_lock), `backend/scripts/sql/proteger_audit_logs.sql` (triggers anti-UPDATE/DELETE), `scripts/verificar_cadena_logs.py` (verificación de integridad).
@@ -224,23 +224,24 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 
 ### 3.6 Continuidad (Backups y Recuperación)
 
-**Decisión:** Backups diarios cifrados con GPG AES-256, conservando últimos 7 días. Script de restauración a base separada para pruebas.  
-**Por qué:** Cumple con NIST SP 800-34 (contingency planning). Cifrado de backups protege datos en reposo si el medio de almacenamiento es comprometido.  
+**Decisión:** Backup local cifrado con GPG AES-256 bajo demanda, con rotación de los últimos 7 archivos, y restauración en una base de prueba separada. No hay un scheduler, copia off-site ni WAL archiving configurados en el repositorio.
+**Por qué:** El cifrado y la restauración aislada apoyan la continuidad (NIST SP 800-34); no garantizan por sí solos un RPO/RTO. Un RPO de 24 horas solo es alcanzable si un operador ejecuta los backups al menos diariamente.
 **Estándar:** NIST SP 800-34 (Contingency Planning Guide), NIST SP 800-61 (Computer Security Incident Handling).  
 **Alternativa descartada:** Backups sin cifrado - vulnerable a robo de medio físico.  
 **Evidencia:** `scripts/backup.sh` (pg_dump + GPG), `scripts/restore.sh` (restauración a base separada), `docker/backup/Dockerfile`, `scripts/verificar_restauracion.py`.
 
-**Implementación:**
-- Backups nombrados backup_YYYY-MM-DD_HHMM.dump.gpg
-- Cifrado GPG con passphrase de BACKUP_PASSPHRASE
-- Rotación automática (conserva últimos 7, borra más viejos)
-- Restauración a base criptomed_restore_test (nunca sobre base real)
-- Verificación compara conteos de filas, cadena de hashes y descifrado de muestra
+**Implementación y límites:**
+- `scripts/backup.sh` crea `backup_YYYY-MM-DD_HHMM.dump.gpg` cuando se invoca y conserva los 7 archivos más recientes; no significa 7 días.
+- Cifrado GPG con passphrase `BACKUP_PASSPHRASE`; la ubicación/custodia de la passphrase fuera del host debe definirse para producción.
+- `scripts/restore.sh` restaura en `criptomed_restore_test`; los errores de `pg_restore` ahora detienen el proceso en vez de imprimir un falso éxito.
+- `scripts/verificar_restauracion.py` permite comparar conteos, cadena de hashes y descifrado de muestra después de restaurar.
+- Evidencia del 2026-11-16: se generó `backups/backup_2026-11-16_1232.dump.gpg` (~293 KiB), se restauró en la base aislada de prueba en 3 segundos y la verificación comparó 7 usuarios, 501 pacientes, 70 logs y 14.409 diagnósticos; validó la cadena de 70 logs y descifró 5/5 pacientes de muestra.
+- El RTO de 3 segundos es una medición puntual en este entorno local, no un SLA ni una garantía. El backup permanece local y no se configura scheduler, copia off-site, WAL archiving ni un RPO garantizado. La base principal no se reemplazó; la base de prueba permanece en el volumen local.
 
 ### 3.7 Despliegue y Aislamiento (Docker)
 
-**Decisión:** Despliegue local con Docker Compose. Contenedores no-root, no-new-privileges, cap_drop ALL, read_only filesystem, tmpfs, límites de recursos. Redes internas (db_net: internal). Solo edge publica puerto.  
-**Por qué:** Aislamiento de red reduce superficie de ataque. Contenedores no-root limitan daño si comprometidos. read_only + tmpfs previene modificación de binarios. CIS Docker Benchmark recommends todos estos controles.  
+**Decisión:** Despliegue local con Docker Compose, con controles de aislamiento y hardening aplicados de forma desigual por servicio. El backend usa usuario no-root, cap_drop, read_only y tmpfs; PostgreSQL tiene capacidades limitadas; `init` se ejecuta como root y el edge no aplica todos los controles. Solo edge publica puerto.
+**Por qué:** El aislamiento de red reduce superficie de ataque, pero los controles parciales no prueban cumplimiento del CIS Docker Benchmark. La configuración de `init` y edge queda como brecha de hardening antes de producción.
 **Estándar:** CIS Docker Benchmark (4.1, 5.2, 5.8, 5.15, 5.17, 5.26), OWASP Docker Security Cheat Sheet.  
 **Alternativa descartada:** Despliegue en PaaS sin control de red y contenedores - no cumple CIS Benchmark.  
 **Evidencia:** `docker-compose.yml`, `docker/backend/Dockerfile`, `docker/edge/Dockerfile`, `docs/HARDENING_DOCKER.md`.
@@ -248,7 +249,8 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 **Implementación:**
 - Backend: python:3.12.7-slim, usuario app (UID 10001), read_only: true, tmpfs /tmp
 - PostgreSQL: postgres:16-alpine, cap_drop ALL + capacidades mínimas, tmpfs /tmp /var/run/postgresql
-- Edge: nginx:1.27-alpine, puerto 8443 publicado
+- Init: mismo Dockerfile de backend, pero `docker-compose.yml` fuerza `user: "0:0"`; requiere justificar o eliminar la ejecución como root
+- Edge: nginx:1.27-alpine, puerto 8443 publicado; los controles de hardening están comentados
 - Redes: app_net (no internal para edge), db_net (internal para PostgreSQL)
 - Security opt: no-new-privileges:true en backend, db, init
 
@@ -258,7 +260,7 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 **Por qué:** Protege contra XSS, clickjacking, MIME sniffing. CORS restrictivo reduce riesgo de CSRF.  
 **Estándar:** OWASP ASVS V7 (HTTP Security), OWASP Secure Headers Project.  
 **Alternativa descartada:** CORS wildcard (*) - permitiría any-origin requests.  
-**Evidencia:** `backend/app/middleware/security_headers.py`, `docker/edge/nginx.conf`.
+**Evidencia:** `backend/app/security_headers.py`, `docker/edge/nginx.conf`.
 
 **Implementación:**
 - Strict-Transport-Security: max-age=31536000; includeSubDomains
@@ -284,7 +286,7 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 ### 4.1 Autonomía del Paciente
 
 **Decisión:** Paciente puede ver su historial (GET /pacientes/me), ver quién accedió (GET /pacientes/me/accesos), exportar sus datos (GET /pacientes/me/export), y transferir a otro doctor (PATCH /pacientes/{id}/transferir-doctor).  
-**Por qué:** Responde al principio de autonomía del paciente (bioética) y derechos ARCO de Ley 29733 (acceso, portabilidad, control).  
+**Por qué:** Apoya la autonomía y algunas funciones de acceso/transparencia; no sustituye un canal integral para ejercer todos los derechos que correspondan.
 **Estándar:** Ley 29733 Art. 14 (derechos ARCO), GDPR Art. 20 (portabilidad).  
 **Alternativa descartada:** Solo admin puede transferir - viola autonomía del paciente.  
 **Evidencia:** `backend/app/routers/pacientes.py` (líneas 92-250), frontend con confirmación explícita.
@@ -312,7 +314,7 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 ### 4.2 Consentimiento
 
 **Decisión:** Campos consentimiento_fecha y consentimiento_version en modelo Paciente.  
-**Por qué:** Cumple con Ley 29733 (consentimiento informado). Permite trazabilidad de cambios en políticas.  
+**Por qué:** Los campos permiten registrar una fecha y versión; no demuestran por sí solos la obtención de consentimiento válido ni constituyen un flujo de consentimiento.
 **Estándar:** Ley 29733 Art. 5 (medidas de seguridad, consentimiento).  
 **Alternativa descartada:** Sin registro de consentimiento - no hay evidencia de cumplimiento.  
 **Evidencia:** `backend/app/models.py` (líneas 75-76), `docs/inventario_datos.md`.
@@ -370,7 +372,7 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 **Estándar:** OWASP ASVS (continuous security testing).  
 **Evidencia:** `scripts/security_scan.sh after`, `reports/after/`, `docs/comparativa_antes_despues.md`.
 
-**Resultados finales:**
+**Resultados históricos documentados (no repetidos en esta revisión):**
 - Total hallazgos: 1,396 (reducción del 61.18%)
 - Bandit: 16 (2 remediales eliminados, 16 falsos positivos permanecen)
 - pip-audit: 29 (16 CVEs eliminados)
@@ -381,7 +383,7 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 - testssl.sh: 0 (TLS 1.3 correcto)
 - OWASP ZAP: 2 (CORP corregido, 2 informativos permanecen)
 
-**Conclusión:** Postura de seguridad significativamente reforzada. Riesgos residuales aceptados con justificación documentada.
+**Conclusión:** El reporte registra una reducción de hallazgos respecto al escaneo inicial, pero conserva hallazgos pendientes (incluidos resultados de `pip-audit` y Trivy). No equivale a ausencia de vulnerabilidades ni a una aceptación formal de riesgos. Repetir el escaneo con el mismo alcance y revisar cada hallazgo antes de cualquier uso real.
 
 ---
 
@@ -412,10 +414,10 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 
 ### 6.2 Plan de Respuesta a Incidentes
 
-**Decisión:** Procedimientos de notificación a ANPD dentro de 48 horas de tomar conocimiento del incidente e informar a titulares afectados (Reglamento D.S. 016-2024-JUS). Si incidente es en entorno digital, reportar también al Centro Nacional de Seguridad Digital.  
-**Por qué:** Cumple Ley 29733 Art. 10 (notificación de incidentes) y Reglamento D.S. 016-2024-JUS.  
+**Decisión:** El procedimiento documenta evaluación, contención, notificación a la ANPD y comunicación a titulares afectados, con el plazo de 48 horas citado en el reglamento aplicable. Para incidentes digitales también contempla reportar al Centro Nacional de Seguridad Digital.
+**Por qué:** Es un plan de respuesta documentado, no una prueba de cumplimiento. Antes de operar, la organización debe confirmar la vigencia, supuesto, destinatarios y cómputo de los plazos, y asignar responsables y contactos.
 **Estándar:** Ley 29733 Art. 10, Reglamento D.S. 016-2024-JUS, NIST SP 800-61 (incident handling).  
-**Evidencia:** Procedimientos documentados en docs/FINAL_REPORT.md (sección 2.3), referencias a ANPD.
+**Evidencia:** `docs/SECURITY_AWARENESS.md` (sección 6). El plan está documentado; su ejecución, responsables y contactos deben establecerse para una clínica real.
 
 **Etapas:** Detección → Contención → Erradicación → Recuperación → Post-Incidente → Notificación (ANPD + titulares).
 
@@ -431,11 +433,11 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 **Evidencia:** `docs/inventario_datos.md` (justificación de cada campo), `docs/etica_privacidad.md`.
 
 **Implementación:**
-- Minimización: Solo campos necesarios para atención médica, gestión administrativa y cumplimiento legal
+- Minimización: Inventario y finalidad documentados; la clínica debe validar necesidad campo por campo antes de tratar datos reales
 - Finalidad: Cada campo tiene finalidad clara y documentada
 - Evidencia de consentimiento: campos consentimiento_fecha y consentimiento_version; el flujo de consentimiento sigue pendiente
 - Transparencia: Paciente puede ver quién accedió a sus datos
-- Integridad: Logs inmutables con cadena SHA-256
+- Integridad: Logs con cadena SHA-256 y controles de escritura; no son inmutables ante un administrador privilegiado
 - Confidencialidad: Cifrado AES-256-GCM + TLS 1.3 + RBAC
 
 ### 7.2 Consideraciones Éticas
@@ -461,10 +463,9 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 - Scripts: security_scan.sh, verificar_despliegue.sh
 
 **Revisión:**
-- Revisión humana línea por línea
-- 65 pruebas unitarias ejecutadas exitosamente
-- Escaneos de seguridad antes/después (reducción 61.18%)
-- Verificación funcional manual
+- La prueba nueva `backend/tests/test_generate_secrets.py` pasó (1 test) en la imagen backend existente. El total histórico de 65 pruebas no se pudo confirmar: el `pytest -q` genérico desde la raíz falla al recolectar wrappers duplicados y el test E2E importa `requests`, que no está en la imagen usada. La ruta `./scripts/dev.sh test` requiere el backend en ejecución y no se ejecutó en esta revisión.
+- Los escaneos antes/después documentados reportan una reducción de 61.18%; son evidencia histórica, no un escaneo repetido en esta revisión.
+- El smoke test de despliegue pasó: edge y API respondieron HTTP 200, los tres servicios quedaron healthy/up y el login de admin funcionó. No se repitieron la suite integrada, la demo de todos los flujos ni la restauración de backups.
 
 ---
 
@@ -484,7 +485,7 @@ Las capturas se tomaron sobre el entorno Docker (`https://localhost:8443`) y el 
 
 **Lección 1:** Cifrado sin control de acceso es insuficiente. Un admin malintencionado puede descifrar todo. Necesita RBAC + auditoría (defensa en profundidad).
 
-**Lección 2:** Logs de auditoría deben ser inmutables. Si hay endpoint para borrar logs, un insider puede ocultar evidencia. Solución: triggers anti-UPDATE/DELETE + rol de aplicación con solo INSERT/SELECT.
+**Lección 2:** Los controles de auditoría (cadena, triggers y permisos del rol de aplicación) dificultan y pueden evidenciar alteraciones desde la aplicación, pero no ofrecen inmutabilidad frente a administradores; para mayor garantía se requiere anclaje externo y separación de funciones.
 
 **Lección 3:** Verificación con herramientas es crítica. Hallazgos de ZAP (CORP header) y Bandit (inyección SQL) no se habrían detectado manualmente.
 

@@ -1,6 +1,8 @@
-# Política de Backups y Plan de Contingencia — CriptoMed
+# Backups y recuperación — CriptoMed
 
-**Estándares y Marcos de Referencia:**
+> **Estado real del prototipo:** backup y restauración son operaciones manuales locales. El repositorio no configura una frecuencia, un scheduler, almacenamiento off-site, Object Lock ni WAL archiving. Las secciones de frecuencia y custodia externa que antes aparecían como política se retiran: son recomendaciones para un despliegue futuro, no controles implementados. Esta documentación no acredita cumplimiento de HIPAA ni de otro marco normativo.
+
+**Referencias de diseño (no certificaciones):**
 - **NIST SP 800-34 Rev. 1:** *Contingency Planning Guide for Federal Information Systems*.
 - **NIST SP 800-57 Part 1 Rev. 5:** *Recommendation for Key Management* (Sección 8.2: *Cryptographic Key Separation*).
 - **NIST SP 800-38D / FIPS 197:** *Galois/Counter Mode (GCM) & Advanced Encryption Standard (AES-256)*.
@@ -8,40 +10,38 @@
 
 ---
 
-## 1. Política y Periodicidad de Respaldos
+## 1. Capacidad implementada y objetivos
 
-Siguiendo la arquitectura de resiliencia establecida en la Entrega 1 y los lineamientos de NIST SP 800-34:
+| Capacidad | Estado |
+| :--- | :--- |
+| Formato | `pg_dump -Fc`, cifrado con GPG (AES-256) por `scripts/backup.sh` |
+| Frecuencia | Manual: debe ejecutarse `./scripts/backup.sh`; no existe programación en el repositorio |
+| Retención | Se conservan los 7 archivos más recientes, no siete días |
+| Ubicación | `./backups/` en el host; excluir del control de versiones y proteger el host |
+| Copia off-site / inmutable | No configurada |
+| WAL archiving / recuperación punto-en-tiempo | No configurado |
+| Objetivo de RPO | 24 horas solo si una persona ejecuta y comprueba el backup diariamente; no es una garantía actual |
+| RTO observado | 3 segundos en una restauración local de prueba el 2026-11-16; no es un SLA ni una garantía para otro entorno |
 
-| Tipo de Respaldo | Frecuencia | Ventana Horaria | Formato y Retención |
-| :--- | :--- | :--- | :--- |
-| **Respaldo Completo Semanal** | Domingos | 02:00 AM (UTC-5) | `pg_dump -Fc` cifrado con GPG (AES-256). Retención: 4 semanas (1 mes). |
-| **Respaldo Diario** | Lunes a Sábado | 02:00 AM (UTC-5) | `pg_dump -Fc` cifrado con GPG (AES-256). Retención: últimos 7 días. |
-
-### Destino de Almacenamiento
-1. **Volumen Local Aislado**: Carpeta local `./backups/` en el host (excluida del control de versiones mediante `.gitignore`).
-2. **Réplica Secundaria Fuera de Sitio (Off-site)**: Los respaldos se sincronizan periódicamente a un bucket S3 / Cloud Storage inmutable (con *Object Lock* y ciclo de vida de 30 días) en una región geográfica separada.
+Para uso real deben definirse responsables, frecuencia, destino externo, cifrado/custodia de llaves, retención aprobada y objetivos RPO/RTO; luego probarse periódicamente.
 
 ---
 
-## 2. Aislamiento y Separación Criptográfica de Llaves (NIST SP 800-57)
+## 2. Cifrado y custodia de llaves: requisitos pendientes de operación
 
-> [!CRITICAL]
-> **Regla de Separación Criptográfica Estricta:**
-> Las llaves criptográficas utilizadas para cifrar los datos en reposo (`ENC_KEYS`) y la frase de paso del respaldo (`BACKUP_PASSPHRASE`) **NUNCA** se almacenan ni se transmiten junto con los archivos de dump de la base de datos (`*.dump.gpg`).
+El script cifra el dump con `BACKUP_PASSPHRASE`. La separación efectiva y la recuperación de `BACKUP_PASSPHRASE` y `ENC_KEYS` dependen de la configuración del host/operador; el repositorio no integra ni evidencia un gestor KMS/Vault ni control dual. No almacenar la passphrase junto al backup.
 
 - **Cifrado en reposo del dump**: El archivo se cifra con `gpg --symmetric --cipher-algo AES256` empleando una frase de paso de alta entropía (`BACKUP_PASSPHRASE`), generada criptográficamente por `scripts/generate_secrets.py`.
 - **Doble capa de protección**:
   1. La base de datos contiene los campos sensibles de los pacientes (`nombre`, `diagnostico`, `monto_facturado`, `medicacion`, `resultado_test`) ya cifrados a nivel de aplicación con **AES-256-GCM** y llaves versionadas ligadas a contexto (**AAD**).
   2. El volcado completo (`pg_dump`) se encuentra a su vez encapsulado y cifrado con **AES-256 simétrico vía GPG**.
-- **Gestión de contingencia de secretos**:
-  - `BACKUP_PASSPHRASE` y `ENC_KEYS` se custodian en un gestor de secretos empresarial (KMS / HashiCorp Vault / 1Password for Teams) con control de acceso dual (*Split Knowledge / Two-person control*).
-  - Un atacante que obtenga una copia del archivo `.dump.gpg` requeriría romper el cifrado AES-256 de GPG, y aun logrando descifrar el dump, solo obtendría texto cifrado con AES-GCM sin acceso al anillo `ENC_KEYS`.
+- **Pendiente antes de producción:** custodiar ambos secretos en un gestor apropiado, con acceso restringido y procedimiento probado de recuperación. Si la clave de cifrado de campos no está disponible, los datos cifrados restaurados no podrán descifrarse.
 
 ---
 
 ## 3. Procedimientos Operativos
 
-### 3.1 Ejecución de Backup Manual o Programado
+### 3.1 Ejecución manual de backup
 Ejecuta el script host que orquesta el contenedor `backup` (profile `tools`):
 ```bash
 ./scripts/backup.sh
@@ -69,9 +69,24 @@ docker compose run --rm backend python scripts/verificar_restauracion.py
 
 ---
 
-## 4. Evidencia de Prueba de Restauración y RTO Medido
+## 4. Evidencia de backup y restauración en esta revisión
 
-Prueba oficial de contingencia y recuperación realizada en el entorno de desarrollo y validación:
+El **2026-11-16** se generó un backup cifrado y se restauró en `criptomed_restore_test`, sin reemplazar la base principal. La restauración tomó **3 segundos** según el script; es una observación local, no un SLA ni una garantía de recuperación. El archivo queda en `backups/` (excluido de Git) y debe protegerse en el host.
+
+| Parámetro | Resultado observado |
+| :--- | :--- |
+| **Archivo** | `backups/backup_2026-11-16_1232.dump.gpg` |
+| **Cifrado / tamaño** | GPG simétrico AES-256 / aproximadamente 293 KiB |
+| **Restauración** | Completada en 3 segundos en `criptomed_restore_test` |
+| **Conteos comparados** | usuarios 7/7; pacientes 501/501; audit_logs 70/70; diagnosticos_cie10 14.409/14.409 |
+| **Integridad y descifrado** | 70 eventos de auditoría validados; 5/5 pacientes de muestra descifrados con las llaves/AAD actuales |
+| **RPO** | No medido ni garantizado; depende de ejecutar y comprobar backups. WAL archiving no está configurado |
+
+La comprobación requirió corregir en `backend/scripts/verificar_restauracion.py` una evaluación booleana inválida de una expresión SQLAlchemy. La restauración y verificación terminaron correctamente tras el cambio. La base aislada de prueba permanece en el volumen local; la base principal no se reemplazó.
+
+## 5. Evidencia histórica de restauración
+
+La prueba del **2026-11-04** se conserva solo como referencia histórica. No debe confundirse con la evidencia actual ni con un SLA.
 
 | Parámetro | Valor Obtenido en Prueba | Estándar / KPI |
 | :--- | :--- | :--- |
@@ -79,8 +94,8 @@ Prueba oficial de contingencia y recuperación realizada en el entorno de desarr
 | **Archivo de Respaldo Generado** | `backups/backup_2026-11-04_1442.dump.gpg` | GPG AES-256 |
 | **Tamaño del Respaldo Cifrado** | **284 KB** (500 pacientes + 14,409 códigos CIE-10 + 5 logs) | Compresión -Fc + GPG |
 | **Duración del Proceso de Backup** | **2 segundos** | < 1 minuto |
-| **Tiempo de Restauración (RTO Medido)** | **1 segundo** | **RTO < 5 minutos (Superado ampliamente)** |
-| **RPO Objetivo** | 24 horas (respaldo diario) / Transaccional (WAL archiving) | Cumplido |
+| **Tiempo de Restauración (medición histórica)** | **1 segundo** | No implica RTO vigente |
+| **RPO** | No medido; depende de la frecuencia real de backups | Sin garantía actual; WAL archiving no configurado |
 | **Base de Datos Destino de Prueba** | `criptomed_restore_test` | Aislada de producción |
 
 ### Resultados de Integridad Forense (`verificar_restauracion.py`):
@@ -88,5 +103,5 @@ Prueba oficial de contingencia y recuperación realizada en el entorno de desarr
 - **pacientes**: 500 / 500 (100% recuperado)
 - **diagnosticos_cie10**: 14,409 / 14,409 (100% recuperado)
 - **audit_logs**: 5 / 5 (100% recuperado)
-- **Cadena de Auditoría SHA-256**: 5/5 eslabones validados criptográficamente; ningún registro alterado ni roto tras la restauración.
+- **Cadena de Auditoría SHA-256**: 5/5 eslabones validados en esa prueba histórica.
 - **Descifrado de Pacientes (AES-256-GCM + AAD)**: Muestra de 5 pacientes descifrada exitosamente con las llaves vigentes del anillo `ENC_KEYS`.

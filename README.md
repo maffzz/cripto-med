@@ -1,11 +1,13 @@
 # CriptoMed
 > Proyecto de Ética y Seguridad de los Datos – DS3031 (Entrega 2)
 
-Plataforma web que permite a clínicas pequeñas y consultorios independientes centralizar los historiales médicos de sus pacientes de forma segura, con acceso controlado por roles, datos cifrados en reposo con AES-256-GCM, encriptación en tránsito con TLS 1.3, y trazabilidad completa mediante logs de auditoría inmutables con cadena de hashes SHA-256.
+Prototipo web académico que permite demostrar la gestión de historiales médicos sintéticos con acceso controlado por roles, cifrado de campos seleccionados con AES-256-GCM, TLS 1.3 en el edge y logs de auditoría con cadena de hashes SHA-256.
 
 **Despliegue:** Docker Compose local con PostgreSQL 16, FastAPI (Python 3.12.7), React (Vite + Node 20.19.0) y Nginx 1.27 con TLS 1.3.
 
-**Estado:** Fase 4 completada (informe reescrito como narrativa de diseño con verificación de herramientas, DPIA y consideraciones éticas).
+**Estado de la entrega:** prototipo con frontend, backend, controles de seguridad, pruebas y documentación para demostración local.
+
+> **Límite importante:** CriptoMed no está aprobado para producción ni para datos reales. La DPIA identifica riesgo residual alto por retención y eliminación incompletas; además, faltan aprobaciones operativas y validación legal. Usa únicamente datos sintéticos. Consulta [docs/DPIA.md](docs/DPIA.md) y [docs/FINAL_REPORT.md](docs/FINAL_REPORT.md).
 
 ---
 
@@ -18,14 +20,9 @@ Plataforma web que permite a clínicas pequeñas y consultorios independientes c
 3. **Levantar servicios:** `./scripts/dev.sh up`
 4. **Sembrar datos de demo:** `./scripts/dev.sh seed`
 5. **Abrir aplicación:** https://localhost:8443 (aceptar certificado autofirmado o importar `certs/cert.pem` como confiable). No uses `http://127.0.0.1:8000`: ese puerto no se publica al host.
-6. **Usuarios demo** (contraseñas visibles en la pantalla de login — click para autorellenar):
-   - `admin@criptomed.com` → `b8lNNWqSlSKy` — admin
-   - `doctor@criptomed.com` → `5BznGCUkosJa` — Dra. Ana Torres (doctor)
-   - `dr.ramirez@criptomed.com` → `5BznGCUkosJa` — Dr. Luis Ramírez (doctor)
-   - `dra.quispe@criptomed.com` → `5BznGCUkosJa` — Dra. Carla Quispe (doctor)
-   - `admin@clinica.com` → `pa_w7hTW1jSz` — María López (administrativo)
-   - `auditor@criptomed.com` → `4PUoNu7OMXDA` — Auditor Externo (auditor)
-   - `paciente@criptomed.com` → `dbeW0WZR!jsf` — Paciente Demo (paciente)
+6. **Usuarios demo:** admin (`admin@criptomed.com`), doctor (`doctor@criptomed.com`), administrativo (`admin@clinica.com`), auditor (`auditor@criptomed.com`) y paciente (`paciente@criptomed.com`). `./scripts/dev.sh deploy` genera credenciales aleatorias y las muestra en la terminal; el login local permite autorellenarlas.
+
+   **Solo para la demo:** las contraseñas de prueba se inyectan al compilar el frontend y se muestran en la pantalla de login. Por diseño son públicas dentro de este prototipo y no deben reutilizarse ni usarse con datos reales o en un despliegue accesible desde Internet. No copies credenciales en README, capturas ni commits.
 
 ![Login](docs/images/login.png)
 
@@ -118,8 +115,8 @@ graph TB
 | fecha_alta | datetime | |
 | medicacion | string (cifrado AES-256-GCM) | AAD: pacientes.medicacion.{id} |
 | resultado_test | string (cifrado AES-256-GCM) | AAD: pacientes.resultado_test.{id} |
-| consentimiento_fecha | datetime | fecha de consentimiento informado |
-| consentimiento_version | string | versión del documento de consentimiento |
+| consentimiento_fecha | datetime | fecha registrada; no demuestra aceptación válida por sí sola |
+| consentimiento_version | string | versión registrada; no existe flujo digital de consentimiento |
 
 **`diagnosticos_cie10`**
 
@@ -128,7 +125,7 @@ graph TB
 | codigo | string / PK |
 | descripcion | string |
 
-**`audit_logs`** *(inmutable, cadena SHA-256, solo INSERT/SELECT para rol de aplicación)*
+**`audit_logs`** *(cadena SHA-256 con controles de integridad; no inmutable frente a un administrador privilegiado)*
 
 | Campo | Tipo | Notas |
 |---|---|---|
@@ -174,16 +171,16 @@ graph TB
 
 | Medida | Implementación | Estándar |
 |---|---|---|
-| Cifrado en reposo | AES-256-GCM con llaves versionadas (v1, v2) y AAD sobre campos sensibles (nombre, diagnóstico, medicación, resultado_test, monto_facturado) | FIPS 197, NIST SP 800-38D |
+| Cifrado en reposo | AES-256-GCM con llaves versionadas (v1, v2) y AAD en cinco campos: nombre, diagnóstico, medicación, resultado_test y monto_facturado | FIPS 197, NIST SP 800-38D |
 | Cifrado en tránsito | TLS 1.3 exclusivo en edge Nginx, certificado autofirmado (OpenSSL) | RFC 8446, NIST SP 800-52 Rev. 2 |
 | Hashing de contraseñas | bcrypt factor 12, política NIST SP 800-63B (sin composición obligatoria, sin expiración periódica) | OWASP Password Storage Cheat Sheet, NIST SP 800-63B |
-| Autenticación | JWT HS256 con expiración 30 min, verificación de activo y bloqueado_hasta en cada request | RFC 7519, RFC 8725 |
+| Autenticación | JWT HS256; expiración configurable por `JWT_EXPIRE_MINUTES` (30 en `.env.example`, 15 como fallback del backend), verifica activo y bloqueado_hasta en cada request | RFC 7519, RFC 8725 |
 | Autorización | RBAC (5 roles), principio de mínimo privilegio, filtrado en backend (no solo frontend) | NIST SP 800-63B, OWASP ASVS |
-| Auditoría | Logs inmutables con cadena SHA-256, pg_advisory_xact_lock, triggers anti-UPDATE/DELETE, rol de aplicación con solo INSERT/SELECT | NIST SP 800-92, OWASP Logging Cheat Sheet |
+| Auditoría | Logs detectables ante alteraciones: cadena SHA-256, pg_advisory_xact_lock, triggers anti-UPDATE/DELETE y rol de aplicación con solo INSERT/SELECT | NIST SP 800-92, OWASP Logging Cheat Sheet |
 | Bloqueo por fuerza bruta | Bloqueo tras 5 intentos fallidos (15 min), rate limiting 10 req/min por IP (slowapi) | NIST SP 800-63B |
-| Usuario no root | Contenedores backend e init corren como UID 10001 | CIS Docker Benchmark 4.1 |
-| Capabilities mínimas | `cap_drop: ALL` + `cap_add` de solo las necesarias (NET_BIND_SERVICE, CHOWN, etc.) | CIS Docker Benchmark 5.26 |
-| No secretos en imágenes | Variables de entorno vía docker-compose.yml, no COPY de .env, certificados en volumen de solo lectura | CIS Docker Benchmark 4.1, OWASP ASVS V7.2.1 |
+| Usuario no root | El backend corre como UID 10001; el servicio `init` anula ese usuario y se ejecuta como root. El edge tampoco aplica todos los controles de usuario | CIS Docker Benchmark 4.1 |
+| Capabilities mínimas | `cap_drop: ALL` + capacidades necesarias en db, backend e init; el edge no aplica este control | CIS Docker Benchmark 5.26 |
+| Secretos de runtime | `.env` no se copia al backend y la llave privada TLS se monta en runtime. **Excepción de demo:** las credenciales de prueba se compilan en el frontend y quedan públicas en la imagen edge; no usar en producción. | CIS Docker Benchmark 4.1, OWASP ASVS V7.2.1 |
 | Healthchecks | pg_isready (db), /health endpoint (backend) | CIS Docker Benchmark 6.1 |
 | Límites de recursos | mem_limit y pids_limit configurados en docker-compose.yml | CIS Docker Benchmark 5.17 |
 | Filesystem read-only | Backend e init con read_only: true, tmpfs para /tmp | CIS Docker Benchmark 5.15 |
@@ -191,6 +188,8 @@ graph TB
 | Cabeceras de seguridad | HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, CSP, Cross-Origin-Resource-Policy | OWASP ASVS V7 |
 
 Para más detalles de hardening, ver `docs/HARDENING_DOCKER.md`.
+
+**Límites conocidos:** otros datos personales/de salud (por ejemplo edad, tipo de sangre, CIE-10 y fechas) no están cifrados campo por campo en PostgreSQL. La cadena de hashes y los triggers dificultan/detectan cambios mediante el rol de aplicación, pero un administrador de base de datos con privilegios puede modificar los controles; no existe anclaje externo de logs.
 
 ---
 
@@ -229,6 +228,9 @@ Para más detalles de hardening, ver `docs/HARDENING_DOCKER.md`.
 - `docs/etica_privacidad.md` - Consideraciones éticas y privacidad
 - `docs/hallazgos.md` - Registro de hallazgos de seguridad (escaneo inicial)
 - `docs/comparativa_antes_despues.md` - Comparativa de escaneos antes/después de remediación
+- `docs/BACKUPS.md` - Procedimientos y evidencia de continuidad (revisar límites de automatización)
+- `docs/objetivos_vs_resultados.md` - Estado de objetivos y evidencia
+- `docs/matriz_trazabilidad.md` - Trazabilidad de requisitos
 
 ---
 
@@ -258,9 +260,13 @@ Para más detalles de hardening, ver `docs/HARDENING_DOCKER.md`.
 - `./scripts/dev.sh ps` - Muestra estado de servicios
 - `./scripts/dev.sh test` - Ejecuta pytest en backend
 - `./scripts/dev.sh shell-db` - Abre psql en contenedor db
-- `./scripts/verificar_despliegue.sh` - Verifica 8 puntos críticos del despliegue (TLS 1.3, puertos internos, healthchecks, login, usuario no root, sin secretos en imágenes, sin secretos en config, reset)
+- `./scripts/backup.sh` - Crea un backup cifrado local (ejecución manual)
+- `./scripts/restore.sh <archivo>` - Restaura a `criptomed_restore_test`, nunca sobre la base principal
+- `./scripts/verificar_despliegue.sh` - Comprueba TLS, puertos, salud de servicios, login, usuario no root, ausencia de `.env`/`.pem` en ubicaciones de imagen revisadas, placeholders en config e imágenes requeridas. No comprueba reset, retención ni cumplimiento legal.
 - `./scripts/security_scan.sh` - Ejecuta suite multi-herramienta (Bandit, pip-audit, npm audit, Gitleaks, Hadolint, Trivy, testssl.sh, OWASP ZAP)
 - `./scripts/rotate_keys.py` - Rotación de llaves de cifrado (con --dry-run)
+
+**Continuidad:** el 2026-11-16 se generó un backup cifrado local y se restauró en la base aislada de prueba en 3 segundos; conteos, cadena de auditoría y descifrado de muestra se verificaron. Es una medición puntual, no un SLA. No hay scheduler, copia off-site, WAL archiving ni RPO garantizado; la retención conserva los últimos 7 archivos, no necesariamente 7 días.
 
 ---
 
@@ -346,9 +352,11 @@ El script `./scripts/verificar_despliegue.sh` verifica:
 3. ✅ Todos los servicios (db, backend, edge) están healthy/up
 4. ✅ Login con usuario demo funciona a través de https://localhost:8443/api/auth/login
 5. ✅ Backend corre con UID 10001 (usuario no root)
-6. ✅ No hay .env ni *.pem en las imágenes Docker
+6. ✅ El script busca `.env` en backend y `.pem` en edge; no comprueba todos los secretos posibles ni que credenciales de demo estén fuera del frontend
 7. ✅ docker compose config no contiene secretos literales
-8. ✅ Reset completo disponible mediante `./scripts/dev.sh reset`
+8. ✅ Las imágenes de backend e init requeridas existen
+
+Estas verificaciones de despliegue no prueban cumplimiento legal, expiración/purga de datos ni recuperación de una copia de seguridad.
 
 ---
 
@@ -365,36 +373,25 @@ El script `./scripts/security_scan.sh` ejecuta:
 - **testssl.sh** (TLS DAST) - Configuración TLS del servidor
 - **OWASP ZAP** (DAST) - Inyección, headers, CORS, configuración
 
-Resultados tras remediación (Fase 2):
-- Reducción del 61.18% en hallazgos (3,596 → 1,396)
-- Todas las vulnerabilidades de severidad alta/media en código propio corregidas
-- 0 vulnerabilidades en frontend directo
-- 0 fugas de secretos en repo
+Resultados históricos documentados tras remediación (no revalidados en esta revisión):
+- Reducción reportada del 61.18% en hallazgos (3,596 → 1,396)
+- El reporte previo no encontró vulnerabilidades altas/medias en código propio ni vulnerabilidades directas en frontend
+- El reporte previo no encontró fugas de secretos
+
+Estos resultados dependen del momento, alcance y configuración del escaneo; no son una garantía sobre el estado actual ni una certificación.
 
 ---
 
-## Cumplimiento normativo
+## Marco normativo y referencias técnicas
 
-- **Ley N° 29733** – Ley de Protección de Datos Personales del Perú
-  - Art. 3: Datos de salud = datos sensibles ✅
-  - Art. 5: Medidas técnicas (cifrado, hashing, control de acceso) ✅
-  - Art. 10: Notificación de incidentes a ANPD (48h) ✅
-  - Art. 14: Derechos ARCO (acceso, portabilidad, control) ✅
-- **Reglamento D.S. 016-2024-JUS** – Reglamento de la Ley 29733 (Decreto Supremo N° 016-2024-JUS, 30 de noviembre de 2024) ✅
-- **ANPD** – Autoridad Nacional de Protección de Datos Personales
-- **GDPR Art. 35** – Evaluación de Impacto en la Protección de Datos (DPIA) ✅
-- **ISO/IEC 29134** – Guía para evaluación de impacto en privacidad ✅
-- **NIST SP 800-38D** – Recomendación para modo GCM (AES-256) ✅
-- **NIST SP 800-63B** – Directrices de autenticación y contraseña ✅
-- **NIST SP 800-92** – Guía de logging ✅
-- **RFC 8446** – TLS 1.3 ✅
-- **RFC 7519** – JWT ✅
-- **RFC 8725** – JWT Best Current Practices ✅
-- **OWASP ASVS** – Application Security Verification Standard ✅
-- **CIS Docker Benchmark** – Benchmarks para contenedores ✅
-- **OWASP Docker Security Cheat Sheet** – Guía de seguridad Docker ✅
-- **OWASP Password Storage Cheat Sheet** – Almacenamiento de contraseñas ✅
-- **OWASP Logging Cheat Sheet** – Logging best practices ✅
+Las referencias siguientes orientan el diseño y las verificaciones técnicas; **no equivalen a certificación ni prueban por sí solas cumplimiento legal**:
+
+- **Perú:** Ley N.° 29733 y Reglamento D.S. 016-2024-JUS, vigente desde 2025. Antes de tratar datos reales, la clínica debe validar obligaciones, base jurídica, retención, derechos y plazos de incidentes con la normativa y guía ANPD vigentes.
+- **GDPR Arts. 25, 35 y 36:** privacidad desde el diseño, DPIA y consulta previa solo cuando el GDPR sea aplicable territorialmente y se cumplan sus criterios de riesgo.
+- **ISO/IEC 29134:** metodología para evaluación de impacto de privacidad.
+- **NIST SP 800-38D, SP 800-63B, SP 800-92; RFC 8446, RFC 7519 y RFC 8725; OWASP ASVS/Cheat Sheets y CIS Docker Benchmark:** referencias para controles técnicos concretos.
+
+La app no tiene un proceso automatizado de retención/supresión ni una aprobación de tratamiento real. La DPIA queda limitada a una demo local con datos sintéticos.
 
 ---
 
@@ -407,8 +404,8 @@ Resultados tras remediación (Fase 2):
 - Migración de Fernet a AES-256-GCM con llaves versionadas (FIPS 197, NIST SP 800-38D)
 - Implementación de cadena de hashes SHA-256 en logs de auditoría (NIST SP 800-92)
 - Implementación de bloqueo por fuerza bruta y rate limiting (NIST SP 800-63B)
-- Verificación con herramientas de seguridad (reducción 61.18% en hallazgos)
-- DPIA completa con 12 riesgos identificados
+- Escaneos históricos de seguridad reportan una reducción del 61.18% en hallazgos; no se revalidó en esta revisión
+- DPIA con 12 riesgos; uno residual alto (retención) pendiente de mitigación antes de producción
 - Consideraciones éticas y privacidad (autonomía del paciente, break-glass, transparencia IA)
 - Informe reescrito como narrativa de diseño (no checklist)
 

@@ -165,43 +165,43 @@ def crear_usuarios_iniciales(db: Session) -> int:
         {
             "nombre": "Admin Sistema",
             "email": "admin@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_ADMIN", "CriptoMed_Adm#2026_Sec"),
+            "password": os.environ["DEMO_PASSWORD_ADMIN"],
             "rol": RolEnum.admin
         },
         {
             "nombre": "Dra. Ana Torres",
             "email": "doctor@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "Medicos_CriptoMed#2026!"),
+            "password": os.environ["DEMO_PASSWORD_DOCTOR"],
             "rol": RolEnum.doctor
         },
         {
             "nombre": "Dr. Luis Ramírez",
             "email": "dr.ramirez@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "Medicos_CriptoMed#2026!"),
+            "password": os.environ["DEMO_PASSWORD_DOCTOR"],
             "rol": RolEnum.doctor
         },
         {
             "nombre": "Dra. Carla Quispe",
             "email": "dra.quispe@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_DOCTOR", "Medicos_CriptoMed#2026!"),
+            "password": os.environ["DEMO_PASSWORD_DOCTOR"],
             "rol": RolEnum.doctor
         },
         {
             "nombre": "Maria Lopez",
             "email": "admin@clinica.com",
-            "password": os.getenv("DEMO_PASSWORD_ADMINISTRATIVO", "Gestion_Clinica#2026!"),
+            "password": os.environ["DEMO_PASSWORD_ADMINISTRATIVO"],
             "rol": RolEnum.administrativo
         },
         {
             "nombre": "Auditor Externo",
             "email": "auditor@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_AUDITOR", "Control_Forense#2026!"),
+            "password": os.environ["DEMO_PASSWORD_AUDITOR"],
             "rol": RolEnum.auditor
         },
         {
             "nombre": "Paciente Demo",
             "email": "paciente@criptomed.com",
-            "password": os.getenv("DEMO_PASSWORD_PACIENTE", "Salud_Titular#2026_Clave!"),
+            "password": os.environ["DEMO_PASSWORD_PACIENTE"],
             "rol": RolEnum.paciente
         }
     ]
@@ -321,6 +321,21 @@ def verificar_datos(db: Session) -> None:
 
 def main():
     print("=== CriptoMed: Carga y Cifrado de Datos Sintéticos ===")
+    required_passwords = (
+        "DEMO_PASSWORD_ADMIN",
+        "DEMO_PASSWORD_DOCTOR",
+        "DEMO_PASSWORD_ADMINISTRATIVO",
+        "DEMO_PASSWORD_AUDITOR",
+        "DEMO_PASSWORD_PACIENTE",
+    )
+    missing_passwords = [name for name in required_passwords if not os.getenv(name)]
+    if missing_passwords:
+        raise RuntimeError(
+            "Faltan contraseñas de demo en el entorno: "
+            + ", ".join(missing_passwords)
+            + ". Genera .env con scripts/generate_secrets.py."
+        )
+
     enc_keys = os.getenv("ENC_KEYS", "")
     current_kid = os.getenv("ENC_KEY_CURRENT", "")
     print(f"Cifrado configurado: {len(enc_keys.split(',')) if enc_keys else 0} llaves en anillo, llave activa: '{current_kid}'")

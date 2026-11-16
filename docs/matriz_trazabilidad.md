@@ -12,18 +12,18 @@
 | Requisito | Tipo | Entrega | Estado | Dónde está | Evidencia |
 |-----------|------|---------|--------|------------|-----------|
 | **Negocio** | | | | | |
-| Valor medido con KPIs/OKRs | Negocio | E1 mejorado en E2 | Implementado | Tiempo de acceso reducido de ~10 min a <30 seg (medido en queries) | Medida basada en búsqueda en base de datos vs. archivo físico |
-| Cumplimiento de la Ley 29733 | Negocio | E1 mejorado en E2 | Implementado | docs/FINAL_REPORT.md, docs/inventario_datos.md, docs/DPIA.md | Art. 3 (datos sensibles), Art. 5 (medidas técnicas), Art. 10 (notificación), Art. 14 (derechos ARCO) |
-| Backups y recuperación (RTO/RPO) | Negocio | E1 mejorado en E2 | Implementado | scripts/backup.sh, scripts/restore.sh, docs/BACKUPS.md | RPO: 24 horas, RTO: <30 minutos (medido en pruebas de restauración) |
+| Valor medido con KPIs/OKRs | Negocio | E1 mejorado en E2 | Parcial | Demo y medición interna documentada | <30 s en consulta; comparación con 10 min es estimación, no estudio en clínica |
+| Cumplimiento de la Ley 29733 | Negocio | E1 mejorado en E2 | Parcial | docs/FINAL_REPORT.md, docs/inventario_datos.md, docs/DPIA.md | Controles y análisis documentados; no constituyen acreditación legal. DPIA mantiene riesgo alto de retención |
+| Backups y recuperación (RTO/RPO) | Negocio | E1 mejorado en E2 | Parcial | scripts/backup.sh, scripts/restore.sh, docs/BACKUPS.md | Backup manual; sin scheduler/off-site/WAL. RPO/RTO actuales no garantizados; prueba histórica por repetir |
 | **Seguridad** | | | | | |
-| Cifrado en reposo | Seguridad | E1 mejorado en E2 | Implementado | backend/app/crypto.py, scripts/verificar_cifrado.py | AES-256-GCM con llaves versionadas, AAD, 5 campos cifrados |
+| Cifrado en reposo | Seguridad | E1 mejorado en E2 | Parcial | backend/app/crypto.py, scripts/verificar_cifrado.py | AES-256-GCM con AAD en cinco campos; otros datos de salud/cuasi-identificadores no están cifrados campo por campo |
 | Cifrado en tránsito (TLS 1.3 y certificado autofirmado) | Seguridad | E1 mejorado en E2 | Implementado | docker/edge/nginx.conf, scripts/verificar_despliegue.sh | TLS 1.3 exclusivo, certificado autofirmado OpenSSL |
 | Hashing de contraseñas | Seguridad | E1 | Implementado | backend/app/auth.py, requirements.txt | bcrypt factor 12, límite 72 bytes |
 | RBAC | Seguridad | E1 mejorado en E2 | Implementado | backend/app/rbac.py, backend/app/routers/pacientes.py | 5 roles, mínimo privilegio, filtrado en backend |
 | Mínimo privilegio | Seguridad | E1 mejorado en E2 | Implementado | backend/app/rbac.py | Administrativo NO ve diagnóstico, medicación, resultado_test |
-| Expiración de sesión por inactividad | Seguridad | E1 mejorado en E2 | Implementado | frontend/src/context/AuthContext.jsx (líneas 78-97), backend/app/auth.py (JWT_EXPIRE_MINUTES=30) | Temporizador de inactividad de 15 minutos en frontend (NIST SP 800-63B / OWASP Session Management): escucha eventos mousedown, mousemove, keydown, scroll, touchstart; al expirar borra el token y redirige al login. JWT expira en 30 min en backend. |
-| Logs de auditoría | Seguridad | E1 mejorado en E2 | Implementado | backend/app/audit.py, backend/app/routers/audit_logs.py | 9 acciones registradas, todos los accesos |
-| Logs inmutables | Seguridad | E2 | Implementado | backend/scripts/sql/proteger_audit_logs.sql, scripts/verificar_cadena_logs.py | Cadena SHA-256, triggers anti-UPDATE/DELETE, rol de aplicación con solo INSERT/SELECT |
+| Expiración de sesión por inactividad | Seguridad | E1 mejorado en E2 | Implementado con configuración a aclarar | frontend/src/context/AuthContext.jsx, backend/app/config.py, .env.example | Temporizador frontend de 15 minutos; JWT configurable (30 min en `.env.example`, fallback de 15 min). Alinear valores y comprobar expiración en despliegue. |
+| Logs de auditoría | Seguridad | E1 mejorado en E2 | Parcial | backend/app/audit.py, backend/app/routers/audit_logs.py | Acciones instrumentadas; falta demostrar cobertura de cada acceso/ruta |
+| Integridad de auditoría | Seguridad | E2 | Implementado con límite | backend/scripts/sql/proteger_audit_logs.sql, scripts/verificar_cadena_logs.py | Cadena SHA-256, triggers y rol restringido detectan/limitan cambios desde la app; un administrador puede alterarlos y no hay anclaje externo |
 | Política de contraseñas | Seguridad | E1 mejorado en E2 | Implementado | backend/app/routers/auth.py (validate_password_policy) | NIST SP 800-63B: longitud mínima 12, sin rotación obligatoria, verificación contra contraseñas comunes |
 | Capacitación y concientización | Seguridad | E1 mejorado en E2 | Implementado | docs/SECURITY_AWARENESS.md | Política de seguridad y concienciación documentada: roles y responsabilidades, contraseñas seguras (NIST SP 800-63B), manejo de incidentes, uso aceptable del sistema y procedimiento de notificación a ANPD. En prototipo académico se documenta la política; en producción se ejecutaría con simulacros y capacitaciones periódicas. |
 | Revocación inmediata de accesos | Seguridad | E1 mejorado en E2 | Implementado | backend/app/models.py (Usuario.activo), backend/app/routers/usuarios.py (PATCH /usuarios/{id}/revocar) | Campo activo booleano, revoca acceso sin cambio de contraseña |
@@ -36,7 +36,7 @@
 | Transferencia de doctor | Funcional | E2 | Implementado | backend/app/routers/pacientes.py (PATCH /transferir-doctor) | Transferencia self-service con confirmación explícita, registrada en audit_logs |
 | Vista de accesos del paciente | Funcional | E2 | Implementado | backend/app/routers/pacientes.py (GET /me/accesos) | Lista paginada de accesos con nombre profesional, rol, timestamp, IP |
 | Exportación de datos | Funcional | E2 | Implementado | backend/app/routers/pacientes.py (GET /me/export) | Exportación JSON con todos los datos descifrados, registrada como acción exportacion |
-| Consentimiento | Funcional | E2 | Implementado | backend/app/models.py (Paciente.consentimiento_fecha, consentimiento_version) | Campos de consentimiento registrados, versión v1.0 |
+| Consentimiento | Funcional | E2 | Parcial | backend/app/models.py (Paciente.consentimiento_fecha, consentimiento_version) | Se almacenan fecha/versión; no existe flujo que obtenga o pruebe consentimiento válido |
 | **Técnicos** | | | | | |
 | Frontend | Técnico | E1 | Implementado | frontend/, docker/edge/Dockerfile | React + Vite + Node 20.19.0, compilado en edge Nginx |
 | Backend | Técnico | E1 mejorado en E2 | Implementado | backend/, docker/backend/Dockerfile | FastAPI + Python 3.12.7, Docker |
@@ -54,9 +54,4 @@
 
 ## Resumen
 
-**Total requisitos:** 28  
-**Implementados:** 28  
-**Parciales:** 0  
-**No implementados:** 0  
-
-Todos los requisitos están completamente implementados y verificados en el repositorio.
+Esta matriz no afirma que los 28 requisitos estén íntegramente implementados ni verificados. Los estados parciales indican brechas funcionales, legales o de evidencia que deben cerrarse antes de usar datos reales o presentar una afirmación de cumplimiento. La DPIA limita el prototipo a datos sintéticos.
