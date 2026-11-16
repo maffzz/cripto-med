@@ -165,20 +165,26 @@
 **Título:** Evaluación de Impacto en la Protección de Datos
 
 **Viñetas:**
-- DPIA conforme a GDPR Art. 35 e ISO/IEC 29134 · 12 riesgos identificados
-- **Top 3 riesgos para pacientes:**
+- **6 pasos:** describir → necesidad/proporcionalidad → riesgos → mitigar → decidir riesgo residual → aprobar/documentar
+- **LINDDUN:** vinculabilidad · identificabilidad · no repudio · detectabilidad · divulgación · falta de conocimiento · incumplimiento
+- **Cuándo:** GDPR Art. 35 ante probable alto riesgo (p. ej., perfilado sistemático, datos sensibles a gran escala, vigilancia pública o decisiones automatizadas con efectos legales). Perú: buena práctica antes de 2025; el Reglamento D.S. 016-2024-JUS la incorpora para alto riesgo y puede considerarla atenuante; validar supuesto/alcance con ANPD/asesoría.
+- **12 riesgos evaluados**; escala P×I de 1 a 25. Puntajes residuales preliminares:
 
 | Riesgo | R. inherente | Mitigación | R. residual |
 |--------|-------------|------------|-------------|
-| Fuga masiva de BD | 5×5 = 25 | AES-256-GCM + TLS 1.3 | 2 |
-| Acceso indebido interno | 3×5 = 15 | RBAC + logs inmutables | 2 |
-| Indisponibilidad en emergencia | 3×4 = 12 | Break-glass 30 min | 2 |
+| Retención indefinida (R-06) | 4×3 = 12 | Política de retención pendiente | **12 — alto** |
+| Acceso indebido (R-02) | 3×4 = 12 | RBAC + auditoría | 1×4 = 4 |
+| Fuga de BD (R-01) | 2×5 = 10 | AES-256-GCM + aislamiento | 1×5 = 5 |
 
-- Tensión ética: cancelación del titular **vs.** conservación legal 20 años (norma MINSA R.M. 214-2018)
-- Datos sintéticos en pruebas; IA generativa revisada con pruebas + escaneos
+- **Decisión:** solo demo con datos sintéticos; no producción hasta cerrar retención y reevaluar. Si queda alto y aplica GDPR → consulta previa (Art. 36). Revisión ante cambios y al menos anual.
+- Documento completo + herramientas CNIL PIA/AEPD: `docs/DPIA.md`.
 
 **Notas del orador:**
-> "La DPIA evalúa riesgos para los pacientes, no para la clínica. El riesgo más alto antes de controles es fuga masiva: 25 de 25. Tras AES-256-GCM y TLS 1.3 baja a 2. La tensión ética más interesante es que el paciente tiene derecho a cancelar sus datos, pero la norma MINSA exige conservar la historia clínica 20 años. Documenté esa tensión honestamente en la DPIA."
+> "La evaluación completa sigue seis pasos: describir datos, fines y flujos; comprobar necesidad y proporcionalidad y si hay una alternativa con menos datos; identificar y puntuar riesgos; definir controles técnicos y organizativos; decidir si queda algún riesgo residual alto; y aprobar, documentar y revisar cuando cambien los datos, el fin o la tecnología. LINDDUN ayuda a buscar riesgos de vinculabilidad, identificabilidad, no repudio, detectabilidad, divulgación, falta de conocimiento e incumplimiento; no sustituye la evaluación legal.
+>
+> GDPR Art. 35 requiere una DPIA antes de tratamientos probablemente de alto riesgo; ejemplos son evaluación sistemática con decisiones significativas, datos sensibles a gran escala y vigilancia sistemática de espacios públicos a gran escala. No es una obligación automática para cualquier app por el solo hecho de tratar datos sensibles: hay que valorar el alcance y el contexto. En Perú, antes de la entrada en vigor del Reglamento en 2025 la DPIA/EIPD era buena práctica; el Reglamento aprobado por D.S. 016-2024-JUS la incorpora para tratamientos de alto riesgo y puede considerarla atenuante. Validar el supuesto concreto y las consecuencias con la normativa/guía vigentes.
+>
+> El cálculo se corrigió para coincidir con la matriz: la fuga de base de datos no es 25/25 en este DPIA; es 10/25 inherente y 5/25 residual estimado. El riesgo alto vigente es la retención indefinida, 12/25, porque no hay política completa que cubra base de datos, respaldos y logs. No se acepta para producción. Solo usamos datos sintéticos en la demo. Antes de datos reales se aprueban responsable y base jurídica, se establece la retención, se implementan procesos de derechos y se vuelve a puntuar; si el residual sigue alto y aplica GDPR, consulta previa a la autoridad (Art. 36). La DPIA es viva: se revisa ante cambios e incidentes y al menos una vez al año. Ver `docs/DPIA.md` para los 12 riesgos, los planes de mitigación y las fuentes de apoyo CNIL/AEPD."
 
 ---
 
